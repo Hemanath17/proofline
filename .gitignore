@@ -1,11 +1,27 @@
+# secrets
 .env
 .env.*
-CLAUDE.local.md
-.claude/settings.local.json
-.claude/worktrees/
+!.env.example
+
+# Node and Next.js
 node_modules/
 .next/
+out/
+
+# Vercel
 .vercel/
-.venv/
+
+# Python
 __pycache__/
 *.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# editors and OS
+.DS_Store
+.idea/
+.vscode/

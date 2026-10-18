@@ -3,13 +3,15 @@ paths:
   - "api/**/*.py"
 ---
 
-# Python rules (api/)
+# Writing Python in api/
 
-- Load the packet through one loader module (`api/packet.py`) that reads `api/data/packet.json` once, validates it with Pydantic, and caches it. Never open the packet file anywhere else
-- Keep FastAPI routes thin: validate input, check permissions, call a plain function, return a Pydantic model. Business logic lives in plain modules that can be tested without FastAPI
-- Every route that reads client data takes the current staff member as a dependency and checks their role before doing anything else
-- Mask sensitive values (SSNs, bank and account numbers, IP PINs) in the response model on the server; the front end must never receive the unmasked value unless the role allows it, and every unmasked view writes a view-log event
-- Writes: require the item's current revision number; on mismatch return HTTP 409 with the current state. Write the event and any derived change in one database transaction
-- Money: never compare floats with `==`. Use the shared helper (`money_equal(a, b, tolerance)`) and state the tolerance. Return values are whole dollars, except Form 8949 lots, which are in cents
-- Use `pathlib.Path` for file paths and `logging` instead of `print` in library code
-- Errors: raise `HTTPException` with a clear `detail` message a user could act on; never return a bare 500 for a known condition
+- Everything lives in the `proofline` package. Import it as `from proofline.<module> import ...`, never `from api....`
+- Only `proofline/packet.py` opens the packet. It finds the file relative to itself (`Path(__file__).resolve().parent.parent / "data" / "packet.json"`), reads it once per process, checks it with Pydantic and keeps it in memory
+- Routes in `proofline/routes/` stay thin. They validate the input, check who's asking, call a plain function and return a Pydantic model. The real logic lives in modules you can test without FastAPI
+- Any route that touches client data takes the current actor (staff member, client or AI assistant) as a dependency and checks the role before anything else
+- Every response goes through `proofline/security/redact.py`, so a role only sees what it's allowed to, and sensitive values are redacted even inside document text. Revealing a value writes a view-log event
+- Every write goes through `proofline/actions/`. It needs the revision the person saw; if that's stale, return 409 with the current state. The event, the current state and any check-run snapshot are written in one transaction, and if a rule fails, nothing is written
+- Only `proofline/db/` talks to the database. Everything else calls `repository.py`. Schema changes are Alembic migrations, and they never rewrite events
+- Money is `Decimal`, never float maths, and is compared to the cent. Show whole dollars, except Form 8949 lots, which keep their cents
+- Use `pathlib.Path` for paths, and `logging` rather than `print` in library code
+- Errors should help the person reading them. Raise `HTTPException` with a clear `detail`; a 403 names the rule, such as "own work". Never let a known situation become a bare 500

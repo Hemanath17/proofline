@@ -1,0 +1,18 @@
+# Core. After the first clean install, pin exact versions with `pip freeze`.
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+sqlalchemy>=2.0
+alembic>=1.13
+psycopg[binary]>=3.2
+httpx>=0.27
+rapidfuzz>=3.9
+
+# Development
+pytest>=8.0
+ruff>=0.6
+
+# Added in plan step 10 only, after we agree to it:
+# pydantic-ai
+# deepeval
+# langfuse

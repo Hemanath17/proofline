@@ -1,115 +1,115 @@
 # Proofline
 
-<!-- Maintainer notes (stripped from Claude's context): keep this file under ~150 lines.
-     Every line must pass the test "would Claude make a mistake without it?".
-     Detail belongs in docs/ or .claude/rules/, not here. Review after each work session. -->
+<!-- Note to self: keep this under ~150 lines. If a line wouldn't stop Claude from
+     making a real mistake, it doesn't belong here. Details live in docs/ and .claude/rules/. -->
 
-Web workpaper that lets a CPA team prove every number on an AI-prepared 2025 tax return
-(Okafor-Lindqvist household, MiraFlores AI case study): where it came from, how it was
-calculated, who checked it, and what is still open.
+We're building a web workpaper for one household's 2025 tax return (the Okafor-Lindqvist
+case study from MiraFlores AI). The software has already read the documents and computed
+the return. Our job is to let a CPA team prove it: where every number came from, how it
+was worked out, who checked it, and what's still open. A 20-year CPA should trust it more
+than what they use today, and a new hire should manage on day one.
 
-## Stack
-- Front end: Next.js (App Router) + TypeScript at the repo root; pages are client components
-- Back end: FastAPI + Pydantic v2 in `api/`
-- Database: Neon Postgres; attachments: Vercel Blob
-- Hosting: Vercel (Next.js + Python functions in one project)
-- Tests: pytest (Python), `tsc` type check (front end)
+## How it's put together
+- One Vercel project with two services (see `vercel.json`): `web/` is Next.js (App Router, TypeScript), `api/` is FastAPI with Pydantic v2
+- `/api/*` goes to FastAPI, everything else to Next.js. Services is still a Vercel beta. If it lets us down, we split into two Vercel projects and add a Next.js rewrite. No files need to move
+- Neon Postgres through SQLAlchemy 2.0, with Alembic for schema changes. Attachments go to Vercel Blob
+- Tests: pytest for Python, `tsc` for the front end. AI evaluations use DeepEval and are marked `eval`
+- AI comes in only at plan step 10: Pydantic AI for the Evidence Investigator, a Groq model, Langfuse for traces
 
-## Commands
+## Commands (from the repo root)
 ```bash
-pip install -r api/requirements.txt          # Python dependencies
-uvicorn api.index:app --reload --port 8000   # run the API locally
-pytest api/tests -q                          # all Python tests
-pytest api/tests/test_<name>.py -q           # one test file
-npm run dev                                  # front end (once it exists)
-npm run typecheck                            # front end types (once it exists)
+pip install -r api/requirements.txt                    # Python dependencies
+uvicorn index:app --app-dir api --reload --port 8000   # API on its own
+pytest api -q -m "not eval"                            # every Python test, offline
+pytest api/tests/unit/test_<name>.py -q                # one file
+alembic -c api/alembic.ini upgrade head                # apply migrations
+alembic -c api/alembic.ini check                       # do models and migrations agree?
+npm --prefix web install                               # front-end dependencies
+npm --prefix web run dev                               # front end on its own
+npm --prefix web run typecheck                         # front-end types
+vercel dev                                             # both services, the way they deploy
 ```
 
-## Layout
-- `api/index.py`: FastAPI app and routes
-- `api/checks/`: pure check functions, no FastAPI imports; result model in `api/checks/models.py`
-- `api/tests/`, `api/fixtures/`: tests and expected check results (JSON)
-- `api/data/packet.json`: the client packet, read-only
-- `app/`, `components/`, `lib/`: Next.js front end
-- `docs/`: plan, packet guide, errors, decisions, to-do list, lessons, AI usage
+## Where things live
+- `web/app/` has one folder per screen: queue, cases, areas, trace, documents, client, firm, eval. Shared pieces are in `web/components/`, and `web/lib/` holds the generated API types, the API client and the session
+- `api/index.py` is just the Vercel entrypoint (`from proofline.app import app`)
+- All Python code is in the `proofline` package under `api/proofline/`. Import it as `from proofline.<module> import ...`
+  - `app.py` and `routes/` are the only places that know about FastAPI
+  - `packet.py` is the only code that opens the packet
+  - `provenance/` resolves references, claim identity and the dependency graph
+  - `checks/` has one file per check, plus the runner and the baseline
+  - `analysis/` covers reconciliations, the trust marker, priority, calculation (C3), grouping and readiness (C5)
+  - `actions/` has the action service, case transitions (C1), sign-off (C2), disposition (C4), filing (C5) and bulk actions
+  - `db/` holds the connection, SQLAlchemy models, repository, migrations and rebuild. Nothing else touches SQL
+  - `security/` covers roles, actors, redaction and the view log. `ai/` waits for step 10
+- `api/fixtures/`, `api/eval/` and `api/sim/scenarios/` hold expected check results, AI evaluation sets and simulation scripts
+- `api/tests/unit/` mirrors the package, `api/tests/contracts/` has one file per contract, and `api/tests/acceptance/` covers the I, A and W items
 
-## Critical rules
-- NEVER modify `api/data/packet.json`. NEVER read it whole (1.9 MB): query it with small Python scripts or the packet-explorer agent
-- NEVER hard-code a packet value, ID or expected answer inside a check (e.g. `if ssn == "666-74-3309"`). Checks are general rules that would work on any client's packet
-- NEVER commit secrets. Configuration comes from `.env.local` (`DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`)
-- Enforce every permission in the API, never only in the UI. Mask SSNs, bank and account numbers and IP PINs on the server for users without clearance, and log every unmasked view
-- Events are append-only: never UPDATE or DELETE an event row. Undo writes a reversing event
+## Please never
+- Change `api/data/packet.json`, or read it whole. It's 1.9 MB, so query it with a small script or ask the packet-explorer agent
+- Hard-code a packet value, ID or expected answer into a check (`if ssn == "666-74-3309"` is exactly what not to do). A check is a general rule that should work on any client's packet
+- Commit secrets. They live in `.env.local` files and Vercel settings: `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, and later `GROQ_API_KEY` and `LANGFUSE_*`
+- Send the raw packet to the browser. A response carries only what that role may see, with sensitive values redacted, even inside document text
+- Rely on the UI for permissions. The API enforces them, and every unmasked view writes a view-log event
+- Change anything except through the action service. It writes the event and the current state in one transaction, or nothing at all
+- Update or delete an event or the filed record. Undo is a new event that reverses an old one
+- Change the schema except through a reviewed Alembic migration, or write a migration that rewrites past events
 
-## Domain rules
-- Engine snapshots (v1, v2, v3) are immutable. Human adjustments are a separate layer; never present an adjusted return as recomputed (the engine cannot be rerun)
-- Label every tax effect "exact" (from a packet `what_if` result) or "estimate" (from `tax_effect_rates`)
-- Label e-file submission, acceptance and the 2028 IRS letter "Simulated"; respect the app's "as of" date
-- Every check returns `CheckResult`, classified as `error` or `possible_discrepancy`. Documents left unextracted on purpose are not findings
-- A client statement (questionnaire, message, call note) is not verification. Accepting it is a recorded judgment
-- Firm rules (packet `firm.starter_standards`): open review notes block filing; nobody reviews their own work; adjustments over $1,000 of tax effect need partner sign-off
-- Every write carries the item's revision number; a stale revision returns 409 with what changed
+## Tax rules that shape the code
+- Engine runs v1, v2 and v3 never change. Adjustments sit on top, and we never present the result as a recomputed return
+- Every number says how we got it: engine, exact (a plain sum or carry), what-if (from the packet) or estimate (from `tax_effect_rates`). The details are in `docs/CONTRACTS.md` C3
+- A claim is identified by the thing itself (the lot, the form box, the asset), not by its line key
+- Every check returns a `CheckResult`, either an `error` or a `possible_discrepancy`
+- What the client tells us is not verification. Accepting it is a judgment someone records
+- The firm's rules: open review notes block filing, nobody reviews their own work, and a tax effect over 1,000 (federal or state) needs the partner
+- Every write carries the revision the person saw. If it's stale, return 409 with the current state
+- E-file, the client signature and the 2028 IRS letter are replays, so they're labelled "Simulated"
+- This is tax work, not auditing. Say "review", "sign-off" and "IRS examination"
 
-## Workflow orchestration
+## AI, when we get there
+- The AI is a user with its own role, "AI assistant". It can read and propose. It can't change a number, close a case, approve or sign off
+- That limit comes from the role and the action service, not from the prompt
+- AI output is a typed Pydantic object. It goes through the validator and is stored as an AI provenance event
+- An AI feature stays off until it passes its evaluation in `api/eval/` and beats the plain checks
 
-### 1. Plan first
-- Use plan mode for any change touching 2+ files, any data-model decision, or any new screen
-- Read the matching step in `docs/PLAN.md` before planning
-- If a test fails twice for the same reason, or the approach stops making sense, STOP and re-plan instead of patching
+## How I'd like us to work
+- **Plan first.** Use plan mode for anything touching two or more files, the data model, or a new screen. Read the matching step in `docs/PLAN.md` and the contract in `docs/CONTRACTS.md` first. If a test fails twice for the same reason, stop and rethink rather than patching
+- **Use the helpers for their jobs.** Questions about the packet go to packet-explorer, and the reviewer agent looks at a change before it's committed. Run `/deep-test` at the end of each step, and `/simulate` after steps 4, 7 and 8. Don't spin up subagents for small lookups
+- **Learn from corrections.** When I correct you, add one line to `docs/LESSONS.md` with the mistake and the rule that would have prevented it
+- **Show, don't claim.** For checks and the API, show the pytest output. For screens, run the app, take a screenshot and compare it with the plan. "Should work" isn't an answer
+- **Keep it simple.** Before a bigger change, ask whether something simpler does the same job
+- **Know what to just fix.** Go ahead on failing tests, type errors, crashes and clear lint errors. Ask me first about product, data-model, UX or scope decisions, new dependencies, migrations, or changes to `docs/PLAN.md` or `docs/CONTRACTS.md`
 
-### 2. Subagents for named jobs only
-- packet-explorer: any question about what is in the packet
-- reviewer: before committing a feature
-- A general subagent only for wide searches that would flood this session
-- One task per subagent; do not spawn subagents for small lookups
+## Each step, in order
+1. Write the step's tasks into `docs/TODO.md` as checkboxes
+2. Show me, and wait for my OK
+3. Tick tasks off as you go
+4. When it's done, tell me in plain words what changed and why, then wait for my OK
+5. At the end of a session, update `docs/TODO.md`, `docs/DECISIONS.md` and `docs/AI_USAGE.md`
 
-### 3. Learn from corrections
-- After any correction from me, add one line to `docs/LESSONS.md`: the mistake and the rule that prevents it
-- Lessons are loaded below; follow them
+## Style
+- Simple, explicit code: named variables, one step per line, no clever one-liners
+- Python: type hints everywhere, Pydantic models for every API input and output, `Decimal` for money
+- TypeScript: strict mode. API types are generated from FastAPI's OpenAPI schema, never written by hand
+- Touch only the files the task needs, and never weaken or delete a test to get it passing
 
-### 4. Prove it before saying done
-- Checks and API: show the pytest output, including the fixture comparison
-- UI: run the app, take a screenshot, compare it with the plan, fix differences
-- Never say "should work". Show the command you ran and its result
+## Done means
+- Tests and type checks pass, and you've shown the output
+- The matching items in `docs/ACCEPTANCE.md` pass
+- Every number and every simulated event is labelled
+- I've said OK
 
-### 5. Prefer the simpler solution
-- Before presenting a non-trivial change, ask whether a simpler design does the same job; if so, use it
-- Skip this for small, obvious fixes. Do not over-engineer
+## Worth reading when it's relevant
+- `docs/PLAN.md`: the build order and what each step has to deliver
+- `docs/CONTRACTS.md`: cases, sign-off, calculation, documents, readiness, claim identity, redaction, storage
+- `docs/PACKET.md`: what's in the packet, the reference formats, and facts we've already checked
+- `docs/ERRORS.md`: the errors we've confirmed and the leads we haven't
+- `docs/ACCEPTANCE.md`: the tests that define "done"
+- `docs/DECISIONS.md`: why things are the way they are
+- `docs/TODO.md`: where we are
 
-### 6. Know when to act and when to ask
-- Fix without asking: failing tests, type errors, crashes, lint errors with a clear cause
-- STOP and ask me before: any product, data-model, UX or scope decision, adding a dependency, or changing anything in `docs/PLAN.md`
+## If the conversation gets compacted
+Keep the files changed, failing tests and their errors, open decisions, and the current plan step.
 
-## Task management
-1. **Plan:** write the steps for the current plan step into `docs/TODO.md` as checkboxes
-2. **Check in:** show me the steps and wait for my OK before implementing
-3. **Track:** tick items off as they are completed
-4. **Explain:** after each step, summarize in plain language what changed and why, then wait for my OK before the next step
-5. **Record:** at the end of a session, add a short review to `docs/TODO.md`, log decisions in `docs/DECISIONS.md`, and log notable AI contributions in `docs/AI_USAGE.md`
-
-## Core principles
-- **Simplicity first:** the smallest change that fully solves the problem
-- **Root causes only:** never weaken, skip or delete a test to make it pass; no workaround without a `TODO` comment and a line in `docs/TODO.md`
-- **Minimal impact:** touch only the files the task needs; no drive-by refactors
-
-## Code style
-- Prefer simple, explicit code: named intermediate variables, one step per line, no clever one-liners
-- Python: type hints on every function; Pydantic models for all API input and output
-- TypeScript: strict mode; API types generated from FastAPI's OpenAPI schema, never hand-written
-
-## Definition of done
-- Tests and type checks pass, with output shown
-- The matching acceptance item in `docs/PLAN.md` is satisfied
-- Estimates, exact results and simulated events are labeled
-- I have approved the step
-
-## Read when needed (not loaded automatically)
-- `docs/PLAN.md`: product decisions, data model, phases, acceptance checklist
-- `docs/PACKET.md`: packet sections, reference formats (`ev-`, `D`, `qa-`, `py:/`, `agency:/`, line keys), known gotchas
-- `docs/ERRORS.md`: confirmed and suspected errors from the error hunt
-- `docs/TODO.md`: what is done, in progress and next
-
-## When compacting
-Keep: files changed, failing tests and their errors, open decisions, and the current `docs/PLAN.md` step.
-
-## Lessons
+## Lessons so far
 @docs/LESSONS.md
