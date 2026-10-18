@@ -24,6 +24,7 @@ pytest api -q -m "not eval"                            # every Python test, offl
 pytest api/tests/unit/test_<name>.py -q                # one file
 alembic -c api/alembic.ini upgrade head                # apply migrations
 alembic -c api/alembic.ini check                       # do models and migrations agree?
+PYTHONPATH=api python3 -m proofline.checks.baseline    # check precision/recall against docs/ERRORS.md (dev-only: excluded from the Vercel bundle)
 npm --prefix web install                               # front-end dependencies
 npm --prefix web run dev                               # front end on its own
 npm --prefix web run typecheck                         # front-end types

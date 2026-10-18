@@ -1,4 +1,5 @@
 from proofline.packet import load_packet
+
 from tests.unit.factories import minimal_packet
 
 

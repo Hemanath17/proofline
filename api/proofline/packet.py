@@ -16,7 +16,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 _PACKET_PATH = Path(__file__).resolve().parent.parent / "data" / "packet.json"
 
@@ -260,17 +260,39 @@ class ReturnVersion(BaseModel):
     changes_from_previous: list[ChangeFromPrevious] = []
     lines: list[Line] = []
 
+    _lines_by_key: dict[str, Line] = PrivateAttr(default_factory=dict)
+    _assets_by_id: dict[str, Asset] = PrivateAttr(default_factory=dict)
+    # Populated lazily by proofline.provenance.tracing, which recurses through
+    # every line's sources once per return version rather than once per line
+    # traced -- the one-per-object attribute means it lives and dies with
+    # this return version, so there's no cross-packet staleness to manage.
+    _documents_used_by_any_line_cache: frozenset[str] | None = PrivateAttr(default=None)
+
+    def model_post_init(self, context: Any, /) -> None:
+        self._lines_by_key = {line.key: line for line in self.lines}
+        self._assets_by_id = {asset.asset_id: asset for asset in self.assets}
+
     def line(self, key: str) -> Line:
-        for line in self.lines:
-            if line.key == key:
-                return line
-        raise KeyError(f"no line {key!r} in return version {self.version!r}")
+        try:
+            return self._lines_by_key[key]
+        except KeyError:
+            raise KeyError(
+                f"no line {key!r} in return version {self.version!r}"
+            ) from None
 
     def asset(self, asset_id: str) -> Asset:
-        for asset in self.assets:
-            if asset.asset_id == asset_id:
-                return asset
-        raise KeyError(f"no asset {asset_id!r} in return version {self.version!r}")
+        try:
+            return self._assets_by_id[asset_id]
+        except KeyError:
+            raise KeyError(
+                f"no asset {asset_id!r} in return version {self.version!r}"
+            ) from None
+
+    def get_documents_used_by_any_line_cache(self) -> frozenset[str] | None:
+        return self._documents_used_by_any_line_cache
+
+    def set_documents_used_by_any_line_cache(self, value: frozenset[str]) -> None:
+        self._documents_used_by_any_line_cache = value
 
 
 class ChangedLine(BaseModel):
@@ -356,17 +378,28 @@ class Packet(BaseModel):
     post_filing_rates: dict[str, Any] = {}
     fx_rates: FxRates = FxRates()
 
+    _documents_by_id: dict[str, Document] = PrivateAttr(default_factory=dict)
+    _extracted_values_by_id: dict[str, ExtractedValue] = PrivateAttr(
+        default_factory=dict
+    )
+
+    def model_post_init(self, context: Any, /) -> None:
+        self._documents_by_id = {doc.id: doc for doc in self.documents}
+        self._extracted_values_by_id = {
+            value.id: value for value in self.extracted_values
+        }
+
     def document(self, document_id: str) -> Document:
-        for doc in self.documents:
-            if doc.id == document_id:
-                return doc
-        raise KeyError(f"no document {document_id!r}")
+        try:
+            return self._documents_by_id[document_id]
+        except KeyError:
+            raise KeyError(f"no document {document_id!r}") from None
 
     def extracted_value(self, extracted_value_id: str) -> ExtractedValue:
-        for value in self.extracted_values:
-            if value.id == extracted_value_id:
-                return value
-        raise KeyError(f"no extracted value {extracted_value_id!r}")
+        try:
+            return self._extracted_values_by_id[extracted_value_id]
+        except KeyError:
+            raise KeyError(f"no extracted value {extracted_value_id!r}") from None
 
     def return_version(self, version: str = "v3") -> ReturnVersion:
         for rv in self.return_versions:

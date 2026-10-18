@@ -38,6 +38,7 @@ _HOUSEHOLD_RE = re.compile(r"^household:(.+)$")
 _REF_PARAM_RE = re.compile(r"^ref:param\.(.+)$")
 _REF_FX_RE = re.compile(r"^ref:fx\.([A-Za-z]+)\.(.+)$")
 _TIMELINE_RE = re.compile(r"^timeline:(.+)$")
+_VERSION_RE = re.compile(r"^v\d+$")
 _LINE_KEY_RE = re.compile(r"^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$")
 
 
@@ -160,6 +161,12 @@ def resolve(ref: str, packet: Packet, version: str = "v3") -> Resolved:
     if m:
         try:
             return Resolved(ref, "timeline_event", packet.timeline_event(m.group(1)))
+        except KeyError as exc:
+            raise UnresolvedReferenceError(str(exc)) from None
+
+    if _VERSION_RE.match(ref):
+        try:
+            return Resolved(ref, "return_version", packet.return_version(ref))
         except KeyError as exc:
             raise UnresolvedReferenceError(str(exc)) from None
 

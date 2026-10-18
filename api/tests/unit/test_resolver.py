@@ -6,7 +6,6 @@ is the Step 2 "Done when": every reference in the packet resolves.
 from __future__ import annotations
 
 import pytest
-
 from proofline.packet import load_packet
 from proofline.provenance.resolver import UnresolvedReferenceError, resolve
 
@@ -78,6 +77,12 @@ def test_resolve_timeline_non_tl_prefixed_id(packet) -> None:
     assert resolved.kind == "timeline_event"
 
 
+def test_resolve_return_version_ref(packet) -> None:
+    resolved = resolve("v2", packet)
+    assert resolved.kind == "return_version"
+    assert resolved.value.version == "v2"
+
+
 def test_resolve_line_key(packet) -> None:
     resolved = resolve("F1040.1a", packet)
     assert resolved.kind == "line"
@@ -129,6 +134,10 @@ def _collect_all_references(packet) -> set[tuple[str, str]]:
         document_ref = notice.get("document")
         if document_ref:
             refs.add((document_ref, "v3"))
+
+    for event in packet.timeline:
+        for ref in event.refs:
+            refs.add((ref, "v3"))
 
     return refs, change_candidates
 

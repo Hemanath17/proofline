@@ -3,35 +3,64 @@
 Rule: when a gross-receipts line adds a books total and a 1099-K's gross
 amount together, and the books' own transaction detail shows that the same
 payment processor's receipts were already deposited and recorded in the
-books, the 1099-K's amount for that processor is double-counted.
+books, the 1099-K's amount for that processor is double-counted. The
+double-counted amount is the books' own total for that processor, capped at
+what the 1099-K itself reports (the 1099-K can't be double-counted by more
+than its own face amount).
 """
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 
 from proofline.checks.models import CheckResult, TaxEffect
+from proofline.checks.money import parse_money
 from proofline.packet import Packet
 from proofline.provenance.claim_identity import return_total
 
 CHECK_ID = "THIRD_PARTY_PROCESSOR_INCOME_DOUBLE_COUNTED"
-CHECK_VERSION = 1
+CHECK_VERSION = 2
+
+_CORPORATE_SUFFIXES = {
+    "inc",
+    "incorporated",
+    "corp",
+    "corporation",
+    "co",
+    "company",
+    "payments",
+    "payment",
+    "the",
+    "ltd",
+    "llc",
+}
+_WORD_RE = re.compile(r"[a-z0-9]+")
 
 
-def _processor_token(issuer: str) -> str:
-    return issuer.split()[0].lower()
+def _normalize_processor_name(issuer: str) -> str:
+    """The full issuer name, lowercased, with punctuation and common
+    corporate-suffix words stripped -- "Paywell Payments, Inc." becomes
+    "paywell". Matching on the whole remaining phrase (not just its first
+    word) avoids both a false miss, when the distinctive word isn't first,
+    and a false match, when a generic first word is shared by two issuers."""
+    words = [
+        w for w in _WORD_RE.findall(issuer.lower()) if w not in _CORPORATE_SUFFIXES
+    ]
+    return " ".join(words)
 
 
-def _books_overlap_value(packet: Packet, processor_token: str):
+def _books_overlap_values(packet: Packet, processor_name: str) -> list:
+    matches = []
     for candidate in packet.extracted_values:
         if candidate.label is None:
             continue
-        if processor_token not in candidate.label.lower():
+        if processor_name not in candidate.label.lower():
             continue
         document = packet.document(candidate.document_id)
         if document.document_type == "books_transaction_detail":
-            return candidate
-    return None
+            matches.append(candidate)
+    return matches
 
 
 def run(packet: Packet) -> list[CheckResult]:
@@ -57,24 +86,35 @@ def run(packet: Packet) -> list[CheckResult]:
 
         for processor_value in processor_values:
             processor_document = packet.document(processor_value.document_id)
-            token = _processor_token(processor_document.issuer)
-            overlap_value = _books_overlap_value(packet, token)
-            if overlap_value is None:
+            processor_name = _normalize_processor_name(processor_document.issuer)
+            if not processor_name:
                 continue
-            overlap_amount = Decimal(str(overlap_value.value))
-            if overlap_amount <= 0:
+            overlap_values = _books_overlap_values(packet, processor_name)
+            if not overlap_values:
+                continue
+            overlap_total = sum(
+                (parse_money(v.value) or Decimal(0) for v in overlap_values),
+                Decimal(0),
+            )
+            if overlap_total <= 0:
+                continue
+
+            processor_amount = parse_money(processor_value.value) or Decimal(0)
+            double_counted = min(overlap_total, processor_amount)
+            if double_counted <= 0:
                 continue
 
             tax_effect = None
             if rate is not None:
                 tax_effect = TaxEffect(
-                    federal=(overlap_amount * rate.federal_per_dollar).quantize(
+                    federal=(double_counted * rate.federal_per_dollar).quantize(
                         Decimal("0.01")
                     ),
-                    california=(overlap_amount * rate.california_per_dollar).quantize(
+                    california=(double_counted * rate.california_per_dollar).quantize(
                         Decimal("0.01")
                     ),
                     kind="estimate",
+                    direction="overstated",
                 )
 
             findings.append(
@@ -85,17 +125,19 @@ def run(packet: Packet) -> list[CheckResult]:
                     scope="return",
                     finding_type="error",
                     severity="tax_amount",
-                    evidence_refs=[
-                        line.key,
-                        books_value.id,
-                        processor_value.id,
-                        overlap_value.id,
-                    ],
+                    evidence_refs=sorted(
+                        {
+                            line.key,
+                            books_value.id,
+                            processor_value.id,
+                            *(v.id for v in overlap_values),
+                        }
+                    ),
                     claims=[return_total(line.key)],
                     observed=(
                         f"{line.key} adds the full {processor_document.issuer} 1099-K amount "
                         "on top of the books total, but the books' own transaction detail "
-                        f"shows {overlap_amount} of that processor's receipts were already "
+                        f"shows {double_counted} of that processor's receipts were already "
                         "deposited and recorded in the books."
                     ),
                     expected=(
@@ -105,8 +147,9 @@ def run(packet: Packet) -> list[CheckResult]:
                     tax_effect=tax_effect,
                     impact_unknown=tax_effect is None,
                     limitations=(
-                        "Matches the 1099-K issuer's name against the books' own "
-                        "transaction-detail labels; relies on that label naming the processor."
+                        "Matches the 1099-K issuer's normalized name against the books' own "
+                        "transaction-detail labels; relies on that label naming the "
+                        "processor, and caps the double count at the 1099-K's own amount."
                     ),
                     recommended_action=(
                         "Reduce gross receipts by the amount already recorded in the books "

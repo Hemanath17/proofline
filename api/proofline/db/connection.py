@@ -5,8 +5,8 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine, URL, make_url
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL, Engine, make_url
 from sqlalchemy.orm import Session
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -32,7 +32,7 @@ def get_database_url() -> URL:
 def get_engine() -> Engine:
     global _engine
     if _engine is None:
-        _engine = create_engine(get_database_url())
+        _engine = create_engine(get_database_url(), pool_pre_ping=True)
     return _engine
 
 
@@ -42,3 +42,12 @@ def get_session() -> Iterator[Session]:
         yield session
     finally:
         session.close()
+
+
+def check_connection(engine: Engine) -> None:
+    """Raises if the database can't be reached. This is the one place
+    outside this module that's allowed to know the database is reachable
+    (routes/health.py) -- it calls this instead of touching SQL itself, so
+    `proofline/db/` stays the only code that does."""
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))

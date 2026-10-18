@@ -1,22 +1,23 @@
 [
   {
     "check_id": "THIRD_PARTY_PROCESSOR_INCOME_DOUBLE_COUNTED",
-    "check_version": 1,
+    "check_version": 2,
     "area": "business",
     "scope": "return",
     "finding_type": "error",
     "severity": "tax_amount",
-    "evidence_refs": ["SchC.1", "ev-0103", "ev-0127", "ev-0109"],
+    "evidence_refs": ["SchC.1", "ev-0103", "ev-0109", "ev-0127"],
     "claims": [{ "key": "SchC.1" }],
     "observed": "SchC.1 adds the full Paywell Payments, Inc. 1099-K amount on top of the books total, but the books' own transaction detail shows 12400.0 of that processor's receipts were already deposited and recorded in the books.",
     "expected": "A payment processor's 1099-K income that's already reflected in the books shouldn't be added again.",
     "tax_effect": {
       "federal": "4402.00",
       "california": "384.40",
-      "kind": "estimate"
+      "kind": "estimate",
+      "direction": "overstated"
     },
     "impact_unknown": false,
-    "limitations": "Matches the 1099-K issuer's name against the books' own transaction-detail labels; relies on that label naming the processor.",
+    "limitations": "Matches the 1099-K issuer's normalized name against the books' own transaction-detail labels; relies on that label naming the processor, and caps the double count at the 1099-K's own amount.",
     "recommended_action": "Reduce gross receipts by the amount already recorded in the books through this processor before filing."
   }
 ]

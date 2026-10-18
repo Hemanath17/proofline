@@ -1,9 +1,31 @@
 {
   "confirmed": [
-    { "error_id": "E1", "check_id": "DEPENDENT_SSN_INDEPENDENT_SOURCE" },
-    { "error_id": "E2", "check_id": "RSU_LOT_ZERO_BASIS_SUPPLEMENT_AVAILABLE" },
-    { "error_id": "E3", "check_id": "THIRD_PARTY_PROCESSOR_INCOME_DOUBLE_COUNTED" },
-    { "error_id": "E4", "check_id": "DOCUMENT_TOTAL_DISAGREES_WITH_EXTRACTED_DETAIL" }
+    {
+      "error_id": "E1",
+      "check_id": "DEPENDENT_SSN_INDEPENDENT_SOURCE",
+      "claims": ["household:theo:ssn"],
+      "evidence_refs": ["ev-1080"]
+    },
+    {
+      "error_id": "E2",
+      "check_id": "RSU_LOT_ZERO_BASIS_SUPPLEMENT_AVAILABLE",
+      "claims": [
+        "1099b_lot:Northlake Securities:N1",
+        "1099b_lot:Northlake Securities:N3",
+        "1099b_lot:Northlake Securities:N4"
+      ]
+    },
+    {
+      "error_id": "E3",
+      "check_id": "THIRD_PARTY_PROCESSOR_INCOME_DOUBLE_COUNTED",
+      "claims": ["SchC.1"],
+      "evidence_refs": ["ev-0103", "ev-0127"]
+    },
+    {
+      "error_id": "E4",
+      "check_id": "DOCUMENT_TOTAL_DISAGREES_WITH_EXTRACTED_DETAIL",
+      "evidence_refs": ["D31", "ev-0703"]
+    }
   ],
   "possible": [
     {

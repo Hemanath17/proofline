@@ -45,6 +45,23 @@
   - **Note:** checks read `packet.return_versions[-1]` as "the current version" rather than a literal `"v3"` string, so they keep working as new versions are added.
 - [x] End of step: pytest output (53 passed), reviewer agent, `/deep-test`, `docs/ERRORS.md` check ids, `docs/DECISIONS.md`, `docs/AI_USAGE.md`
 
+## Now: hardening pass on Steps 1-3 (before Step 4)
+- [x] `proofline/checks/money.py`: shared `parse_money`, every check switched over
+- [x] `runner.py`: isolate a failing check as a `CheckFailure`, keep running the rest
+- [x] `baseline.py` + `baseline_expectations.json`: evidence/claims-overlap matching, not check_id alone
+- [x] E2 rewrite: issuer/security match, prorate partial sales, blank=0, no-supplement -> possible_discrepancy
+- [x] E3 rewrite: full normalized issuer name, sum all books rows, cap at the 1099-K amount
+- [x] E1 rewrite: `belongs_to`-based linking, digits-only SSN compare, always check identity doc, W-2 box a for taxpayer/spouse
+- [x] E4: run on any used document, not only `partial`
+- [x] `TaxEffect.direction` (overstated/understated), set in E2 and E3
+- [x] `packet.py`: indexes by id (documents, extracted values, lines per version, assets per version)
+- [x] `tracing.py`: cache documents-used-per-version, timing test (<1s for all lines)
+- [x] `tracing.py`: `LineTrace.other_sources` for non-document refs, dangling refs raise instead of swallow
+- [x] `resolver.py`: resolve bare `v1`/`v2`/`v3`; sweep test covers `timeline[].refs`
+- [x] Step 1 infra: `pool_pre_ping`, `/api/health` SELECT 1 + 503, JSONB+seq migration, pin requirements.txt, baseline command + dev-only note in CLAUDE.md, `ruff check --fix`
+- [x] Regenerate all four check fixtures + regression test per item
+- [x] pytest x2, reviewer agent, `/deep-test`, new baseline report, `docs/DECISIONS.md` entries -- no commit
+
 ## Now: Step 4, events/current state/action service/roles/redaction
 
 ## Questions still open

@@ -1,19 +1,25 @@
 [
   {
     "check_id": "RSU_LOT_ZERO_BASIS_SUPPLEMENT_AVAILABLE",
-    "check_version": 1,
+    "check_version": 2,
     "area": "investments",
     "scope": "transaction",
     "finding_type": "error",
     "severity": "tax_amount",
     "evidence_refs": [
       "ev-0066",
+      "ev-0067",
       "ev-0068",
+      "ev-0069",
       "ev-0070",
+      "ev-0071",
+      "ev-0493",
       "ev-0495",
       "ev-0498",
+      "ev-0511",
       "ev-0513",
       "ev-0516",
+      "ev-0520",
       "ev-0522",
       "ev-0525"
     ],
@@ -22,15 +28,16 @@
       { "key": "1099b_lot:Northlake Securities:N3" },
       { "key": "1099b_lot:Northlake Securities:N4" }
     ],
-    "observed": "Noncovered lots N1 (F8949.B.N1), N3 (F8949.B.N3), N4 (F8949.E.N4) report basis 0.00, but the issuing employer's own stock plan supplement gives a nonzero adjusted cost basis for each, matched to the lot by acquisition date.",
+    "observed": "Noncovered lots N1 (F8949.B.N1), N3 (F8949.B.N3), N4 (F8949.E.N4) report basis 0.00, but the issuing employer's own stock plan supplement gives a nonzero adjusted cost basis for each, matched to the lot by security and acquisition date.",
     "expected": "A noncovered RSU lot's basis should use the issuing employer's own cost-basis records when available, not 0.",
     "tax_effect": {
       "federal": "15535.56",
       "california": "1619.08",
-      "kind": "estimate"
+      "kind": "estimate",
+      "direction": "overstated"
     },
     "impact_unknown": false,
-    "limitations": "Estimated from tax_effect_rates, not a recomputation of the engine; assumes the supplement's basis applies in full.",
+    "limitations": "Estimated from tax_effect_rates, not a recomputation of the engine; assumes the supplement's basis applies in full unless the supplement states a smaller quantity than the lot sold.",
     "recommended_action": "Apply each lot's adjusted cost basis from the employer's stock plan supplement and correct Form 8949 before filing."
   }
 ]

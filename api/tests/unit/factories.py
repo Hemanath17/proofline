@@ -10,8 +10,10 @@ from __future__ import annotations
 from typing import Any
 
 from proofline.packet import (
+    CaliforniaSummary,
     Document,
     Extraction,
+    FederalSummary,
     Household,
     Packet,
     PacketMeta,
@@ -19,8 +21,6 @@ from proofline.packet import (
     Person,
     ReturnVersion,
     Summary,
-    CaliforniaSummary,
-    FederalSummary,
 )
 
 

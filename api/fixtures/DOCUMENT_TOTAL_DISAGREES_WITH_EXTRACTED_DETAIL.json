@@ -1,7 +1,7 @@
 [
   {
     "check_id": "DOCUMENT_TOTAL_DISAGREES_WITH_EXTRACTED_DETAIL",
-    "check_version": 1,
+    "check_version": 2,
     "area": "investments",
     "scope": "document",
     "finding_type": "error",

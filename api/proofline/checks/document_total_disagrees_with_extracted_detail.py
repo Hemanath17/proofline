@@ -1,9 +1,12 @@
 """DOCUMENT_TOTAL_DISAGREES_WITH_EXTRACTED_DETAIL
 
-Rule: for a partially-extracted document actually used by the current
-return version, if one of its own summary totals disagrees with the sum of
-its own matching line-level detail, that's a sign the unread page holds an
-item the summary already counts but the detail doesn't.
+Rule: for any document actually used by the current return version, if one
+of its own summary totals disagrees with the sum of its own matching
+line-level detail, that's a sign some of its detail is missing -- an
+unread page, for instance, holding an item the summary already counts but
+the detail doesn't. This isn't limited to documents the pipeline marked
+"partial"; a document marked fully extracted can still have an internal
+summary/detail disagreement.
 """
 
 from __future__ import annotations
@@ -11,10 +14,11 @@ from __future__ import annotations
 from decimal import Decimal
 
 from proofline.checks.models import CheckResult
+from proofline.checks.money import parse_money
 from proofline.packet import Packet
 
 CHECK_ID = "DOCUMENT_TOTAL_DISAGREES_WITH_EXTRACTED_DETAIL"
-CHECK_VERSION = 1
+CHECK_VERSION = 2
 
 
 def run(packet: Packet) -> list[CheckResult]:
@@ -23,8 +27,6 @@ def run(packet: Packet) -> list[CheckResult]:
 
     for document_id in current.documents_used:
         document = packet.document(document_id)
-        if document.extraction.status != "partial":
-            continue
 
         document_values = [
             v for v in packet.extracted_values if v.document_id == document_id
@@ -41,12 +43,15 @@ def run(packet: Packet) -> list[CheckResult]:
             if not detail_values:
                 continue
 
+            summary_amount = parse_money(summary_value.value)
+            if summary_amount is None:
+                continue
             try:
-                summary_amount = Decimal(str(summary_value.value))
                 detail_total = sum(
-                    (Decimal(str(v.value)) for v in detail_values), Decimal("0")
+                    (parse_money(v.value) or Decimal(0) for v in detail_values),
+                    Decimal(0),
                 )
-            except (TypeError, ValueError):
+            except ValueError:
                 continue
 
             difference = summary_amount - detail_total

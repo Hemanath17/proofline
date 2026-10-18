@@ -1,15 +1,15 @@
 [
   {
     "check_id": "DEPENDENT_SSN_INDEPENDENT_SOURCE",
-    "check_version": 1,
+    "check_version": 2,
     "area": "identity",
     "scope": "return",
     "finding_type": "error",
     "severity": "blocks_filing",
     "evidence_refs": [
       "household:theo",
-      "py:/return_2024/dependents/1",
       "ev-1080",
+      "py:/return_2024/dependents/1",
       "agency:/efile/0"
     ],
     "claims": [
@@ -18,10 +18,10 @@
       }
     ],
     "observed": "The household record's SSN for Theo Lindqvist-Okafor doesn't match the SSN on an identity document on file for them.",
-    "expected": "A dependent's SSN matches their own identity document.",
+    "expected": "A person's SSN matches their own independent source.",
     "tax_effect": null,
     "impact_unknown": false,
-    "limitations": "Confirmed by one identity document; doesn't rule out a further data-entry error elsewhere.",
-    "recommended_action": "Correct the dependent's SSN in the household record to match the identity document before filing."
+    "limitations": "Confirmed by an identity document; doesn't rule out a further data-entry error elsewhere.",
+    "recommended_action": "Correct Theo Lindqvist-Okafor's SSN in the household record to match an identity document before filing."
   }
 ]

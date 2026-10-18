@@ -1,12 +1,15 @@
+import time
 from decimal import Decimal
 
-from proofline.packet import Document, Extraction, ExtractedValue, Line, load_packet
+from proofline.packet import Document, ExtractedValue, Extraction, Line, load_packet
+from proofline.provenance.resolver import UnresolvedReferenceError
 from proofline.provenance.tracing import (
     dependency_graph,
     dependents_of,
     trace_document,
     trace_line,
 )
+
 from tests.unit.factories import minimal_packet, minimal_return_version
 
 
@@ -65,6 +68,67 @@ def test_trace_line_with_asset_sourced_entirely_from_prior_years_is_empty_not_an
     assert trace.excluded == ()
 
 
+def test_trace_line_sourced_only_from_a_household_fact_is_not_empty() -> None:
+    """F8812.4 sources only household:theo -- no ev- ref, so it previously
+    traced to nothing (empty primary_sources, empty excluded). It should now
+    show up as a resolved other_sources entry instead of vanishing."""
+    packet = load_packet()
+    trace = trace_line(packet, "F8812.4")
+
+    assert trace.primary_sources == frozenset()
+    other_refs = {other.ref: other.kind for other in trace.other_sources}
+    assert other_refs == {"household:theo": "household_person"}
+
+
+def test_trace_line_with_asset_sources_keeps_the_asset_refs_in_other_sources() -> None:
+    """F4562-E.total-A's own sources are two asset: refs. Even though neither
+    asset resolves to a document (their own sources are py:/ pointers), the
+    asset refs themselves are kept as resolved other_sources, per asset:
+    being one of the reference kinds tracing must not drop."""
+    packet = load_packet()
+    trace = trace_line(packet, "F4562-E.total-A")
+
+    other_refs = {other.ref: other.kind for other in trace.other_sources}
+    assert other_refs == {"asset:SAC-BLDG": "asset", "asset:SAC-ROOF": "asset"}
+
+
+def test_trace_line_with_dangling_ev_ref_raises_unresolved_not_keyerror() -> None:
+    line = Line(
+        key="F1234.dangling",
+        jurisdiction="federal",
+        form="F1234",
+        line="dangling",
+        label="Dangling source",
+        value=Decimal(0),
+        rule="R-SUM",
+        sources=["ev-9999"],
+    )
+    rv = minimal_return_version(lines=[line])
+    packet = minimal_packet(return_versions=[rv])
+
+    try:
+        trace_line(packet, "F1234.dangling")
+    except UnresolvedReferenceError:
+        pass
+    else:
+        raise AssertionError("expected UnresolvedReferenceError")
+
+
+def test_tracing_all_lines_of_the_real_packet_is_fast() -> None:
+    """The Step-2 "Done when" tracing is useful only if it's fast enough to
+    run on every line. Before caching documents_used_by_any_line per return
+    version, this took about 64s for 627 lines; the target is well under 1s."""
+    packet = load_packet()
+    rv = packet.return_version("v3")
+
+    start = time.monotonic()
+    for line in rv.lines:
+        trace_line(packet, line.key)
+    elapsed = time.monotonic() - start
+
+    assert elapsed < 1.0, f"tracing all {len(rv.lines)} lines took {elapsed:.2f}s"
+
+
 def test_trace_line_recurses_through_an_asset_with_document_backed_sources() -> None:
     """When an asset's own sources *are* ev- refs, tracing a line that
     points at the asset should recurse through to the real document."""
@@ -93,7 +157,7 @@ def test_trace_line_recurses_through_an_asset_with_document_backed_sources() -> 
         form="F4562",
         line="total",
         label="Depreciation total",
-        value=Decimal("100"),
+        value=Decimal(100),
         rule="R-DEPRECIATION-SCHEDULE",
         sources=["asset:TEST-ASSET"],
     )

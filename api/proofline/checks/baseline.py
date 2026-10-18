@@ -3,6 +3,12 @@ recall against docs/ERRORS.md's confirmed errors. Findings that don't match
 a confirmed error are classified as matching a Possible error/lead, or
 left unexplained.
 
+A finding only counts as a hit for a confirmed error when its check_id
+matches *and* its evidence overlaps the error's recorded key evidence (or
+claims) -- matching on check_id alone would let an unrelated finding from
+the same check module count as "found", which hides regressions instead of
+catching them.
+
 The expectations this compares against live in
 api/fixtures/baseline_expectations.json -- not inside checks/, so this
 file (and its real evidence references) never trips the no-hardcoded-
@@ -15,7 +21,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from proofline.checks.models import CheckResult
+from proofline.checks.models import CheckFailure, CheckResult
 from proofline.checks.runner import run_all_checks
 from proofline.packet import Packet, load_packet
 
@@ -31,6 +37,16 @@ def _load_expectations() -> dict:
         return json.load(f)
 
 
+def _matches_expected(finding: CheckResult, expected: dict) -> bool:
+    if finding.check_id != expected["check_id"]:
+        return False
+    expected_refs = set(expected.get("evidence_refs", []))
+    expected_claims = set(expected.get("claims", []))
+    if expected_refs and set(finding.evidence_refs) & expected_refs:
+        return True
+    return bool(expected_claims and {str(c) for c in finding.claims} & expected_claims)
+
+
 @dataclass
 class BaselineReport:
     confirmed_found: list[str] = field(default_factory=list)
@@ -38,6 +54,7 @@ class BaselineReport:
     matched_confirmed_findings: list[CheckResult] = field(default_factory=list)
     possible_matches: list[tuple[CheckResult, str]] = field(default_factory=list)
     unexplained: list[CheckResult] = field(default_factory=list)
+    failures: list[CheckFailure] = field(default_factory=list)
     total_error_findings: int = 0
 
     @property
@@ -52,10 +69,13 @@ class BaselineReport:
         return len(self.matched_confirmed_findings) / self.total_error_findings
 
 
-def build_report(packet: Packet | None = None) -> BaselineReport:
+def build_report(
+    packet: Packet | None = None, expectations: dict | None = None
+) -> BaselineReport:
     packet = packet or load_packet()
-    expectations = _load_expectations()
-    findings = run_all_checks(packet)
+    expectations = expectations or _load_expectations()
+    result = run_all_checks(packet)
+    findings = result.findings
 
     confirmed_found: list[str] = []
     confirmed_missing: list[str] = []
@@ -63,7 +83,7 @@ def build_report(packet: Packet | None = None) -> BaselineReport:
     matched_ids: set[int] = set()
 
     for expected in expectations["confirmed"]:
-        match = next((f for f in findings if f.check_id == expected["check_id"]), None)
+        match = next((f for f in findings if _matches_expected(f, expected)), None)
         if match is not None:
             confirmed_found.append(expected["error_id"])
             matched_confirmed_findings.append(match)
@@ -98,6 +118,7 @@ def build_report(packet: Packet | None = None) -> BaselineReport:
         matched_confirmed_findings=matched_confirmed_findings,
         possible_matches=possible_matches,
         unexplained=unexplained,
+        failures=result.failures,
         total_error_findings=total_error_findings,
     )
 
@@ -124,6 +145,11 @@ def print_report(report: BaselineReport | None = None) -> None:
         print("Unexplained findings:")
         for finding in report.unexplained:
             print(f"  {finding.check_id}: {finding.observed}")
+
+    if report.failures:
+        print("Checks that raised instead of running:")
+        for failure in report.failures:
+            print(f"  {failure.check_id}: {failure.error}")
 
 
 if __name__ == "__main__":

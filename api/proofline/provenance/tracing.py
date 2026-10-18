@@ -8,6 +8,14 @@ packet's own data (same issuer, same document type, zero lines use any of
 its extracted values) — no document id is ever hardcoded here. The line's
 own `note` field, when present, is carried along as a human-readable
 explanation, not used to detect the exclusion.
+
+Every source ref on a line resolves to something: an `ev-` ref contributes a
+document to `primary_sources`; everything else (qa-, msg-, call-, py:,
+household:, ref:, timeline:, asset: and line-key/version refs) resolves
+through `provenance.resolver.resolve` and is kept in `other_sources`, so a
+line sourced only from, say, a household fact never traces to nothing. A
+genuinely dangling ref raises UnresolvedReferenceError (from the resolver),
+never a bare KeyError.
 """
 
 from __future__ import annotations
@@ -15,6 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from proofline.packet import Packet, ReturnVersion
+from proofline.provenance.resolver import resolve
 
 
 @dataclass(frozen=True)
@@ -24,10 +33,17 @@ class ExcludedDocument:
 
 
 @dataclass(frozen=True)
+class OtherSource:
+    ref: str
+    kind: str
+
+
+@dataclass(frozen=True)
 class LineTrace:
     line_key: str
     version: str
     primary_sources: frozenset[str]
+    other_sources: tuple[OtherSource, ...]
     excluded: tuple[ExcludedDocument, ...]
     note: str | None
 
@@ -42,46 +58,66 @@ class DocumentTrace:
 
 
 def _documents_behind_source(
-    packet: Packet, rv: ReturnVersion, source_ref: str
+    packet: Packet, rv: ReturnVersion, source_ref: str, version: str
 ) -> set[str]:
     if source_ref.startswith("ev-"):
-        return {packet.extracted_value(source_ref).document_id}
+        resolved = resolve(source_ref, packet, version)
+        return {resolved.value.document_id}
     if source_ref.startswith("asset:"):
-        asset_id = source_ref.split(":", 1)[1]
-        try:
-            asset = rv.asset(asset_id)
-        except KeyError:
-            return set()
+        resolved = resolve(source_ref, packet, version)
+        asset = resolved.value
         documents: set[str] = set()
         for nested_ref in asset.sources:
-            documents |= _documents_behind_source(packet, rv, nested_ref)
+            documents |= _documents_behind_source(packet, rv, nested_ref, version)
         return documents
-    # qa-, msg- and call- sources are client items, not documents.
+    # qa-, msg-, call- and every other non-document reference format: confirm
+    # it actually resolves (a dangling ref raises UnresolvedReferenceError),
+    # but it contributes no document of its own.
+    resolve(source_ref, packet, version)
     return set()
 
 
 def _documents_for_line(
-    packet: Packet, rv: ReturnVersion, line_sources: list[str]
+    packet: Packet, rv: ReturnVersion, line_sources: list[str], version: str
 ) -> set[str]:
     documents: set[str] = set()
     for source_ref in line_sources:
-        documents |= _documents_behind_source(packet, rv, source_ref)
+        documents |= _documents_behind_source(packet, rv, source_ref, version)
     return documents
 
 
-def _documents_used_by_any_line(packet: Packet, rv: ReturnVersion) -> set[str]:
-    documents: set[str] = set()
-    for line in rv.lines:
-        documents |= _documents_for_line(packet, rv, line.sources)
-    return documents
+def _other_sources_for_line(
+    packet: Packet, rv: ReturnVersion, line_sources: list[str], version: str
+) -> tuple[OtherSource, ...]:
+    other: list[OtherSource] = []
+    for source_ref in line_sources:
+        if source_ref.startswith("ev-"):
+            continue
+        resolved = resolve(source_ref, packet, version)
+        other.append(OtherSource(ref=source_ref, kind=resolved.kind))
+    return tuple(other)
+
+
+def _documents_used_by_any_line(
+    packet: Packet, rv: ReturnVersion, version: str
+) -> frozenset[str]:
+    cached = rv.get_documents_used_by_any_line_cache()
+    if cached is None:
+        documents: set[str] = set()
+        for line in rv.lines:
+            documents |= _documents_for_line(packet, rv, line.sources, version)
+        cached = frozenset(documents)
+        rv.set_documents_used_by_any_line_cache(cached)
+    return cached
 
 
 def trace_line(packet: Packet, line_key: str, version: str = "v3") -> LineTrace:
     rv = packet.return_version(version)
     line = rv.line(line_key)
 
-    primary_sources = _documents_for_line(packet, rv, line.sources)
-    documents_used_anywhere = _documents_used_by_any_line(packet, rv)
+    primary_sources = _documents_for_line(packet, rv, line.sources, version)
+    other_sources = _other_sources_for_line(packet, rv, line.sources, version)
+    documents_used_anywhere = _documents_used_by_any_line(packet, rv, version)
 
     excluded: list[ExcludedDocument] = []
     for source_document_id in primary_sources:
@@ -108,6 +144,7 @@ def trace_line(packet: Packet, line_key: str, version: str = "v3") -> LineTrace:
         line_key=line_key,
         version=version,
         primary_sources=frozenset(primary_sources),
+        other_sources=other_sources,
         excluded=tuple(excluded),
         note=line.note,
     )
@@ -120,7 +157,7 @@ def trace_document(
     lines_using = tuple(
         line.key
         for line in rv.lines
-        if document_id in _documents_for_line(packet, rv, line.sources)
+        if document_id in _documents_for_line(packet, rv, line.sources, version)
     )
     used = len(lines_using) > 0
 

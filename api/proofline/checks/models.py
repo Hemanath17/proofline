@@ -29,10 +29,14 @@ FindingType = Literal["error", "possible_discrepancy"]
 Severity = Literal["blocks_filing", "penalty_risk", "tax_amount", "info"]
 
 
+Direction = Literal["overstated", "understated"]
+
+
 class TaxEffect(BaseModel):
     federal: Decimal
     california: Decimal
     kind: Literal["exact", "estimate"]
+    direction: Direction
 
 
 class CheckResult(BaseModel):
@@ -50,3 +54,12 @@ class CheckResult(BaseModel):
     impact_unknown: bool = False
     limitations: str
     recommended_action: str
+
+
+class CheckFailure(BaseModel):
+    """A check module that raised instead of returning findings. The runner
+    records one of these and keeps running the other checks, rather than
+    letting one broken check take down the whole run."""
+
+    check_id: str
+    error: str

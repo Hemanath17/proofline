@@ -2,7 +2,8 @@ import json
 from pathlib import Path
 
 from proofline.checks.document_total_disagrees_with_extracted_detail import run
-from proofline.packet import Document, Extraction, ExtractedValue, load_packet
+from proofline.packet import Document, ExtractedValue, Extraction, load_packet
+
 from tests.unit.factories import minimal_packet, minimal_return_version
 
 _FIXTURE_PATH = (
@@ -58,6 +59,50 @@ def test_partial_document_with_matching_total_is_not_flagged() -> None:
     )
 
     assert run(packet) == []
+
+
+def test_fully_extracted_document_with_mismatched_total_is_still_flagged() -> None:
+    """A document the pipeline marked fully "extracted" (not "partial") can
+    still have an internal summary/detail disagreement -- the check must
+    not skip it just because extraction wasn't marked partial."""
+    document = Document(
+        id="D01",
+        title="Test brokerage statement",
+        document_type="1099-composite",
+        issuer="Test Broker",
+        page_count=1,
+        extraction=Extraction(status="extracted", values=2),
+    )
+    extracted_values = [
+        ExtractedValue(
+            id="ev-0001",
+            document_id="D01",
+            page=1,
+            field="b_summary_proceeds",
+            label="summary total proceeds",
+            value=250.0,
+            value_type="money",
+            confidence=0.99,
+        ),
+        ExtractedValue(
+            id="ev-0002",
+            document_id="D01",
+            page=1,
+            field="M1_proceeds",
+            value=100.0,
+            value_type="money",
+            confidence=0.99,
+        ),
+    ]
+    rv = minimal_return_version(documents_used=["D01"])
+    packet = minimal_packet(
+        documents=[document], extracted_values=extracted_values, return_versions=[rv]
+    )
+
+    findings = run(packet)
+
+    assert len(findings) == 1
+    assert findings[0].check_id == "DOCUMENT_TOTAL_DISAGREES_WITH_EXTRACTED_DETAIL"
 
 
 def test_superseded_document_not_in_documents_used_is_skipped() -> None:
