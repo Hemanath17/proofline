@@ -20,3 +20,9 @@
 
 ## Measured result
 - AI explanations of findings helped in 3 of 10 real cases; not built. Evidence: the ten-case test in the design notes
+
+## Step 1 (Claude Code)
+- Scaffolded `web/` (Next.js) and `api/proofline/` (FastAPI: `db/connection.py`, `db/models.py`, `db/repository.py`, `routes/health.py`, `routes/events.py`), wrote the first Alembic migration for the `events` table, and wrote offline pytest coverage (in-memory SQLite, no network) for the repository and routes
+- Researched Vercel's current Services/Functions/env-var docs via its own skills before writing `vercel.json`'s `functions.excludeFiles`, rather than guessing the config shape
+- Deployed to a new Vercel project (`proofline`, team `deployapps`), ran the migration against the real Neon database, wrote and re-read a proof event across a redeploy, and measured cold-start time, all without ever printing `DATABASE_URL`
+- I flagged, and the user confirmed, that the Step 1 events endpoints are throwaway and must be replaced by the real action service in Step 4

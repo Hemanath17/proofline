@@ -30,3 +30,6 @@
 | 2026-10-17 | MCP server for the same tools, after the core | Outside agents get exactly the AI-assistant permissions |
 | 2026-10-17 | Not used: embeddings and pgvector, DSPy, multi-agent frameworks, anomaly models, open Q&A, fine-tuning | Each fails a stated need; see the Blueprint |
 | 2026-10-17 | Tax wording: review, sign-off, IRS examination | This is tax compliance work, not auditing |
+| 2026-10-18 | Vercel Services (one project, `web/` + `api/`) worked as documented; no fallback to two projects needed | `vercel link` auto-detected and connected the GitHub repo, and both services deployed and routed correctly on the first try |
+| 2026-10-18 | Cold-start measured at ~336ms for the first `/api/health` request on a fresh production deployment (vs. ~289ms on the next request) | Fluid Compute pre-warming keeps cold start close to warm; no action needed at this step |
+| 2026-10-18 | Added `python-dotenv` to `api/requirements.txt` | Local `uvicorn` and `alembic` runs need `.env.local` loaded manually; Vercel injects env vars directly in production so this is dev-only |

@@ -26,3 +26,5 @@ htmlcov/
 .idea/
 .vscode/
 CLAUDE.local.md
+.claude/scheduled_tasks.lock
+.claude/scheduled_tasks.lock

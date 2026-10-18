@@ -1,7 +1,13 @@
 {
   "services": {
     "web": { "root": "web/" },
-    "api": { "root": "api/", "entrypoint": "index:app" }
+    "api": {
+      "root": "api/",
+      "entrypoint": "index:app",
+      "functions": {
+        "index.py": { "excludeFiles": "{tests/**,fixtures/**,eval/**,sim/**}" }
+      }
+    }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": { "service": "api" } },
