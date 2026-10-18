@@ -15,6 +15,16 @@ load_dotenv(_REPO_ROOT / ".env.local")
 _engine: Engine | None = None
 
 
+class DatabaseUnavailable(Exception):
+    """The database can't be reached or isn't configured at all --
+    `DATABASE_URL` missing, as well as a real connection failure. A single
+    app-level exception handler (see app.py) catches this (and SQLAlchemy's
+    OperationalError) so every route gets the same 503 behavior without its
+    own try/except, including when the failure happens while resolving a
+    `Depends(get_engine)` -- before a route's own try/except would even
+    run."""
+
+
 def get_database_url() -> URL:
     """The real connection URL as a SQLAlchemy URL object, never a plain string.
 
@@ -22,7 +32,10 @@ def get_database_url() -> URL:
     accidental prints) mask the password by default. Only create_engine()
     and similar APIs that accept a URL object directly should receive this.
     """
-    raw = os.environ["DATABASE_URL"]
+    try:
+        raw = os.environ["DATABASE_URL"]
+    except KeyError as exc:
+        raise DatabaseUnavailable("DATABASE_URL is not configured") from exc
     url = make_url(raw).set(drivername="postgresql+psycopg")
     query = dict(url.query)
     query.setdefault("sslmode", "require")

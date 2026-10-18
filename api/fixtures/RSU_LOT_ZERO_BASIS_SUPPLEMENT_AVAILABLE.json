@@ -1,7 +1,7 @@
 [
   {
     "check_id": "RSU_LOT_ZERO_BASIS_SUPPLEMENT_AVAILABLE",
-    "check_version": 2,
+    "check_version": 3,
     "area": "investments",
     "scope": "transaction",
     "finding_type": "error",

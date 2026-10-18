@@ -1,5 +1,9 @@
 import pytest
-from proofline.db.connection import check_connection, get_database_url
+from proofline.db.connection import (
+    DatabaseUnavailable,
+    check_connection,
+    get_database_url,
+)
 from sqlalchemy import create_engine
 
 
@@ -21,7 +25,7 @@ def test_get_database_url_raises_a_clear_error_when_not_configured(
 ) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
 
-    with pytest.raises(KeyError):
+    with pytest.raises(DatabaseUnavailable):
         get_database_url()
 
 

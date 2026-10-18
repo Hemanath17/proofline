@@ -1,0 +1,8 @@
+[tool.ruff.lint.per-file-ignores]
+# api/index.py exists only to re-export `app` for Vercel's entrypoint
+# (vercel.json: "entrypoint": "index:app"). The import looks unused to ruff
+# because nothing in this file calls it, but removing it breaks the
+# deployed API -- `ruff --fix` has done this once already (see
+# docs/DECISIONS.md). The inline `# noqa: F401` alone wasn't enough to stop
+# that, so this is enforced at the config level too.
+"api/index.py" = ["F401"]

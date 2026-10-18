@@ -122,7 +122,11 @@ def test_covered_zero_basis_lot_is_not_flagged() -> None:
         sources=["ev-0001", "ev-0002", "ev-0003", "ev-0004"],
     )
     rv = minimal_return_version(lines=[line])
-    packet = minimal_packet(extracted_values=extracted_values, return_versions=[rv])
+    packet = minimal_packet(
+        documents=[_brokerage_document()],
+        extracted_values=extracted_values,
+        return_versions=[rv],
+    )
 
     assert run(packet) == []
 
@@ -251,3 +255,252 @@ def test_partial_sale_prorates_the_supplement_basis() -> None:
     assert finding.tax_effect.federal == Decimal("500.00")
     assert finding.tax_effect.california == Decimal("125.00")
     assert finding.tax_effect.direction == "overstated"
+
+
+def test_shared_generic_word_alone_does_not_match_ironwood_vs_corvane() -> None:
+    """A lot described as "Ironwood Systems Corp" must not match the
+    "Corvane Systems equity plan administrator" supplement just because
+    both names contain "Systems" -- a false match that previously inflated
+    the confirmed error's tax effect by pulling in an unrelated lot. Only a
+    shared *distinctive* word (or a ticker/CUSIP) counts as a match."""
+    documents = [
+        _supplement_document("D11", "Corvane Systems equity plan administrator"),
+        _brokerage_document(),
+    ]
+    extracted_values = [
+        _ev("D11", "RSU-2502_adjusted_basis", 19100.0, "money", 1),
+        _ev("D11", "RSU-2502_acquired", "2025-02-15", "date", 2),
+        _ev("D99", "N9_description", "Ironwood Systems Corp (RSU)", "text", 3),
+        _ev("D99", "N9_acquired", "2025-02-15", "date", 4),
+        _ev("D99", "N9_basis", 0.0, "money", 5),
+        _ev("D99", "N9_covered", False, "boolean", 6),
+        _ev("D99", "N9_term", "short", "code", 7),
+    ]
+    line = Line(
+        key="F8949.B.N9",
+        jurisdiction="federal",
+        form="F8949",
+        line="B.N9",
+        label="Some Broker (acquired 2025-02-15)",
+        value=Decimal(100),
+        rule="R-8949-LOT",
+        sources=["ev-0003", "ev-0004", "ev-0005", "ev-0006", "ev-0007"],
+    )
+    rv = minimal_return_version(lines=[line])
+    packet = minimal_packet(
+        documents=documents, extracted_values=extracted_values, return_versions=[rv]
+    )
+
+    findings = run(packet)
+
+    assert len(findings) == 1
+    assert findings[0].finding_type == "possible_discrepancy"
+    assert "ev-0001" not in findings[0].evidence_refs
+    assert "ev-0002" not in findings[0].evidence_refs
+
+
+def test_issuer_name_that_is_entirely_generic_words_never_matches() -> None:
+    """When a supplement issuer's name has no distinctive word at all
+    (every word is a corporate suffix or a generic/descriptive word), it
+    must never match -- not even a lot description that happens to repeat
+    those same generic words verbatim. An empty distinctive-word set is a
+    reason to refuse to match, not a vacuous match."""
+    documents = [
+        _supplement_document("D11", "Global Solutions Inc"),
+        _brokerage_document(),
+    ]
+    extracted_values = [
+        _ev("D11", "RSU-1_adjusted_basis", 5000.0, "money", 1),
+        _ev("D11", "RSU-1_acquired", "2025-01-01", "date", 2),
+        _ev("D99", "X1_description", "Global Solutions Inc (RSU)", "text", 3),
+        _ev("D99", "X1_acquired", "2025-01-01", "date", 4),
+        _ev("D99", "X1_basis", 0.0, "money", 5),
+        _ev("D99", "X1_covered", False, "boolean", 6),
+        _ev("D99", "X1_term", "short", "code", 7),
+    ]
+    line = Line(
+        key="F8949.A.X1",
+        jurisdiction="federal",
+        form="F8949",
+        line="A.X1",
+        label="Some Broker (acquired 2025-01-01)",
+        value=Decimal(100),
+        rule="R-8949-LOT",
+        sources=["ev-0003", "ev-0004", "ev-0005", "ev-0006", "ev-0007"],
+    )
+    rv = minimal_return_version(lines=[line])
+    packet = minimal_packet(
+        documents=documents, extracted_values=extracted_values, return_versions=[rv]
+    )
+
+    findings = run(packet)
+
+    assert len(findings) == 1
+    assert findings[0].finding_type == "possible_discrepancy"
+    assert "ev-0001" not in findings[0].evidence_refs
+    assert "ev-0002" not in findings[0].evidence_refs
+
+
+def test_matches_by_ticker_even_when_names_share_no_distinctive_word() -> None:
+    """When both the lot and the supplement carry a ticker, that's an
+    unambiguous match even if the printed names don't overlap at all."""
+    documents = [
+        _supplement_document("D11", "Totally Different Name LLC"),
+        _brokerage_document(),
+    ]
+    extracted_values = [
+        _ev("D11", "RSU-1_adjusted_basis", 5000.0, "money", 1),
+        _ev("D11", "RSU-1_acquired", "2025-01-01", "date", 2),
+        _ev("D11", "RSU-1_ticker", "ACME", "text", 3),
+        _ev("D99", "X1_description", "Some Unrelated Label", "text", 4),
+        _ev("D99", "X1_acquired", "2025-01-01", "date", 5),
+        _ev("D99", "X1_ticker", "acme", "text", 6),
+        _ev("D99", "X1_basis", 0.0, "money", 7),
+        _ev("D99", "X1_covered", False, "boolean", 8),
+        _ev("D99", "X1_term", "short", "code", 9),
+    ]
+    line = Line(
+        key="F8949.A.X1",
+        jurisdiction="federal",
+        form="F8949",
+        line="A.X1",
+        label="Some Broker (acquired 2025-01-01)",
+        value=Decimal(100),
+        rule="R-8949-LOT",
+        sources=["ev-0004", "ev-0005", "ev-0006", "ev-0007", "ev-0008", "ev-0009"],
+    )
+    rv = minimal_return_version(
+        lines=[line],
+        tax_effect_rates={
+            "stcg": TaxEffectRate(
+                federal_per_dollar=Decimal("0.30"),
+                california_per_dollar=Decimal("0.10"),
+            )
+        },
+    )
+    packet = minimal_packet(
+        documents=documents, extracted_values=extracted_values, return_versions=[rv]
+    )
+
+    findings = run(packet)
+
+    assert len(findings) == 1
+    assert findings[0].finding_type == "error"
+
+
+def test_mismatched_ticker_overrides_a_name_based_match() -> None:
+    """When both sides carry a ticker and they disagree, that's decisive --
+    it must not fall back to matching on a shared name word."""
+    documents = [
+        _supplement_document("D11", "Acme Corp equity plan administrator"),
+        _brokerage_document(),
+    ]
+    extracted_values = [
+        _ev("D11", "RSU-1_adjusted_basis", 5000.0, "money", 1),
+        _ev("D11", "RSU-1_acquired", "2025-01-01", "date", 2),
+        _ev("D11", "RSU-1_ticker", "ACME", "text", 3),
+        _ev("D99", "X1_description", "Acme Corp (RSU)", "text", 4),
+        _ev("D99", "X1_acquired", "2025-01-01", "date", 5),
+        _ev("D99", "X1_ticker", "DIFF", "text", 6),
+        _ev("D99", "X1_basis", 0.0, "money", 7),
+        _ev("D99", "X1_covered", False, "boolean", 8),
+        _ev("D99", "X1_term", "short", "code", 9),
+    ]
+    line = Line(
+        key="F8949.A.X1",
+        jurisdiction="federal",
+        form="F8949",
+        line="A.X1",
+        label="Some Broker (acquired 2025-01-01)",
+        value=Decimal(100),
+        rule="R-8949-LOT",
+        sources=["ev-0004", "ev-0005", "ev-0006", "ev-0007", "ev-0008", "ev-0009"],
+    )
+    rv = minimal_return_version(lines=[line])
+    packet = minimal_packet(
+        documents=documents, extracted_values=extracted_values, return_versions=[rv]
+    )
+
+    findings = run(packet)
+
+    assert len(findings) == 1
+    assert findings[0].finding_type == "possible_discrepancy"
+
+
+def test_covered_extracted_as_text_false_is_not_treated_as_covered() -> None:
+    """If "covered" is extracted as the string "false" (or "No"/"0"), the
+    lot must be read as noncovered -- `if value:` on a non-empty string
+    would have silently treated it as covered and skipped it."""
+    documents = [
+        _supplement_document("D11", "Acme Corp equity plan administrator"),
+        _brokerage_document(),
+    ]
+    extracted_values = [
+        _ev("D11", "RSU-1_adjusted_basis", 5000.0, "money", 1),
+        _ev("D11", "RSU-1_acquired", "2025-01-01", "date", 2),
+        _ev("D99", "X1_description", "Acme Corp (RSU)", "text", 3),
+        _ev("D99", "X1_acquired", "2025-01-01", "date", 4),
+        _ev("D99", "X1_basis", 0.0, "money", 5),
+        _ev("D99", "X1_covered", "false", "text", 6),
+        _ev("D99", "X1_term", "short", "code", 7),
+    ]
+    line = Line(
+        key="F8949.A.X1",
+        jurisdiction="federal",
+        form="F8949",
+        line="A.X1",
+        label="Some Broker (acquired 2025-01-01)",
+        value=Decimal(100),
+        rule="R-8949-LOT",
+        sources=["ev-0003", "ev-0004", "ev-0005", "ev-0006", "ev-0007"],
+    )
+    rv = minimal_return_version(
+        lines=[line],
+        tax_effect_rates={
+            "stcg": TaxEffectRate(
+                federal_per_dollar=Decimal("0.30"),
+                california_per_dollar=Decimal("0.10"),
+            )
+        },
+    )
+    packet = minimal_packet(
+        documents=documents, extracted_values=extracted_values, return_versions=[rv]
+    )
+
+    findings = run(packet)
+
+    assert len(findings) == 1
+    assert findings[0].finding_type == "error"
+
+
+def test_covered_value_that_cannot_be_read_is_a_possible_discrepancy() -> None:
+    """An unparseable "covered" value must not be silently skipped as if
+    the lot were covered -- it's a possible_discrepancy instead."""
+    extracted_values = [
+        _ev("D99", "X1_acquired", "2025-01-01", "date", 1),
+        _ev("D99", "X1_basis", 0.0, "money", 2),
+        _ev("D99", "X1_covered", "unknown", "text", 3),
+        _ev("D99", "X1_term", "short", "code", 4),
+    ]
+    line = Line(
+        key="F8949.A.X1",
+        jurisdiction="federal",
+        form="F8949",
+        line="A.X1",
+        label="Some Broker (acquired 2025-01-01)",
+        value=Decimal(100),
+        rule="R-8949-LOT",
+        sources=["ev-0001", "ev-0002", "ev-0003", "ev-0004"],
+    )
+    rv = minimal_return_version(lines=[line])
+    packet = minimal_packet(
+        documents=[_brokerage_document()],
+        extracted_values=extracted_values,
+        return_versions=[rv],
+    )
+
+    findings = run(packet)
+
+    assert len(findings) == 1
+    assert findings[0].finding_type == "possible_discrepancy"
+    assert "covered" in findings[0].observed.lower()

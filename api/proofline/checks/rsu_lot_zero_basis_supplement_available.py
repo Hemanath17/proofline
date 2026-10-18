@@ -3,13 +3,20 @@
 Rule: a noncovered 1099-B lot reporting basis 0.00 (or blank, which is
 treated the same) should use the issuing employer's own stock-plan
 cost-basis supplement when one is available for that same security --
-matched on the acquired date *and* the employer named in the lot's own
-description, not the date alone, since two different employers' stock
-plans could coincidentally vest on the same day. When the supplement
-states a smaller quantity than the lot's own (a partial sale), the basis is
-prorated. A noncovered lot at zero or blank basis with no matching
-supplement at all is a lead for a human to chase, not something this check
-can confirm -- it's a possible discrepancy, not an error.
+matched on the acquired date *and* the security itself, not the date alone,
+since two different employers' stock plans could coincidentally vest on the
+same day. The security match is the supplement issuer's own ticker/CUSIP
+when the packet has one, or else every distinctive word of the supplement
+issuer's name appearing in the lot's own description -- matching on a
+single word two unrelated issuers happen to share (both named "... Systems
+..."  or "... Group", for instance) is exactly the false match this
+guards against. When the supplement states a smaller quantity than the
+lot's own (a partial sale), the basis is prorated. A noncovered lot at zero
+or blank basis with no matching supplement at all is a lead for a human to
+chase, not something this check can confirm -- it's a possible
+discrepancy, not an error. A lot whose "covered" flag can't be read as a
+clear yes or no is also a possible discrepancy, not silently skipped as if
+it were covered.
 """
 
 from __future__ import annotations
@@ -18,14 +25,15 @@ import re
 from decimal import Decimal
 
 from proofline.checks.models import CheckResult, TaxEffect
-from proofline.checks.money import parse_money
+from proofline.checks.money import parse_bool, parse_money
 from proofline.packet import ExtractedValue, Packet
 from proofline.provenance.claim_identity import lot_1099b
 
 CHECK_ID = "RSU_LOT_ZERO_BASIS_SUPPLEMENT_AVAILABLE"
-CHECK_VERSION = 2
+CHECK_VERSION = 3
 
-_CORPORATE_SUFFIXES = {
+_GENERIC_WORDS = {
+    # Corporate suffixes.
     "inc",
     "incorporated",
     "corp",
@@ -35,19 +43,64 @@ _CORPORATE_SUFFIXES = {
     "llc",
     "ltd",
     "limited",
+    # Descriptive words too common to tell one business from another --
+    # sharing one of these alone is not evidence of a match.
+    "systems",
+    "technologies",
+    "group",
+    "holdings",
+    "international",
+    "global",
+    "capital",
+    "partners",
+    "services",
+    "solutions",
 }
 _PARENTHETICAL_RE = re.compile(r"\([^)]*\)")
 _WORD_RE = re.compile(r"[a-z0-9]+")
 
 
-def _significant_words(name: str) -> set[str]:
-    """Lowercase words from a name, dropping a trailing parenthetical (e.g.
-    "(RSU)") and common corporate suffixes -- what's left is what actually
-    identifies the business, usable to cross-check a lot's own description
-    against a supplement document's issuer without hardcoding any name."""
+def _words(name: str) -> set[str]:
+    """Lowercase words from a name, with a trailing parenthetical (e.g.
+    "(RSU)") dropped."""
     without_parens = _PARENTHETICAL_RE.sub("", name)
-    words = set(_WORD_RE.findall(without_parens.lower()))
-    return words - _CORPORATE_SUFFIXES
+    return set(_WORD_RE.findall(without_parens.lower()))
+
+
+def _distinctive_words(name: str) -> list[str]:
+    """The leading run of a name's words, stopping at the first corporate
+    suffix or generic/descriptive word -- "Corvane Systems equity plan
+    administrator" becomes ["corvane"], not a scattered set that keeps
+    "equity"/"plan"/"administrator" while dropping "systems". This is what
+    actually identifies one business, usable to check a lot's own
+    description for it without hardcoding any name."""
+    without_parens = _PARENTHETICAL_RE.sub("", name)
+    words = _WORD_RE.findall(without_parens.lower())
+    distinctive: list[str] = []
+    for word in words:
+        if word in _GENERIC_WORDS:
+            break
+        distinctive.append(word)
+    return distinctive
+
+
+def _matches_by_name(description: str, issuer: str) -> bool:
+    distinctive = _distinctive_words(issuer)
+    if not distinctive:
+        return False
+    description_words = _words(description)
+    return all(word in description_words for word in distinctive)
+
+
+def _security_id(fields: dict[str, ExtractedValue]) -> str | None:
+    """A ticker or CUSIP, when the packet's extraction gives one -- an
+    unambiguous identifier that doesn't depend on word-matching a printed
+    name at all."""
+    for field_name in ("ticker", "cusip"):
+        value = fields.get(field_name)
+        if value is not None and value.value:
+            return str(value.value).strip().upper()
+    return None
 
 
 def _lot_fields(
@@ -107,6 +160,16 @@ def _supplement_lots(packet: Packet) -> list[dict]:
         if acquired is None:
             continue
         quantity_ev = _sibling_field(packet, value.document_id, f"{prefix}_quantity")
+        lot_fields = {
+            field_name: sibling
+            for field_name in ("ticker", "cusip")
+            if (
+                sibling := _sibling_field(
+                    packet, value.document_id, f"{prefix}_{field_name}"
+                )
+            )
+            is not None
+        }
 
         lots.append(
             {
@@ -118,19 +181,26 @@ def _supplement_lots(packet: Packet) -> list[dict]:
                 "quantity": parse_money(quantity_ev.value)
                 if quantity_ev is not None
                 else None,
+                "security_id": _security_id(lot_fields),
             }
         )
     return lots
 
 
 def _matching_supplement_lot(
-    supplement_lots: list[dict], description: str, acquired_date: str
+    supplement_lots: list[dict],
+    description: str,
+    acquired_date: str,
+    security_id: str | None,
 ) -> dict | None:
-    description_words = _significant_words(description)
     for lot in supplement_lots:
         if lot["acquired"] != acquired_date:
             continue
-        if description_words & _significant_words(lot["issuer"]):
+        if security_id is not None and lot["security_id"] is not None:
+            if security_id == lot["security_id"]:
+                return lot
+            continue
+        if _matches_by_name(description, lot["issuer"]):
             return lot
     return None
 
@@ -149,22 +219,60 @@ def run(packet: Packet) -> list[CheckResult]:
         fields = _lot_fields(packet, line.key, line.sources)
         if "basis" not in fields or "covered" not in fields or "acquired" not in fields:
             continue
-        if fields["covered"].value:
+
+        lot_id = line.key.split(".")[-1]
+        issuer = packet.document(fields["basis"].document_id).issuer
+
+        covered = parse_bool(fields["covered"].value)
+        if covered is True:
+            continue
+        if covered is None:
+            possible_findings.append(
+                CheckResult(
+                    check_id=CHECK_ID,
+                    check_version=CHECK_VERSION,
+                    area="investments",
+                    scope="transaction",
+                    finding_type="possible_discrepancy",
+                    severity="tax_amount",
+                    evidence_refs=[fields["covered"].id],
+                    claims=[lot_1099b(issuer, lot_id)],
+                    observed=(
+                        f"Lot {lot_id} ({line.key})'s covered/noncovered flag "
+                        f"({fields['covered'].value!r}) couldn't be read as a clear "
+                        "yes or no."
+                    ),
+                    expected=(
+                        "A lot's covered status should be a clear yes or no before "
+                        "this check can decide whether a missing basis applies to it."
+                    ),
+                    tax_effect=None,
+                    impact_unknown=True,
+                    limitations=(
+                        "The covered/noncovered value wasn't recognized as a boolean, "
+                        "a 0/1, or yes/no text, so it was neither treated as covered "
+                        "nor as noncovered."
+                    ),
+                    recommended_action=(
+                        f"Confirm whether lot {lot_id} ({line.key}) is covered or "
+                        "noncovered before filing."
+                    ),
+                )
+            )
             continue
 
         basis = parse_money(fields["basis"].value)
         if basis is not None and basis != 0:
             continue
 
-        lot_id = line.key.split(".")[-1]
-        issuer = packet.document(fields["basis"].document_id).issuer
         acquired_date = str(fields["acquired"].value)
         description = fields.get("description")
+        security_id = _security_id(fields)
 
         supplement = None
         if description is not None:
             supplement = _matching_supplement_lot(
-                supplement_lots, str(description.value), acquired_date
+                supplement_lots, str(description.value), acquired_date, security_id
             )
 
         evidence_refs = [fields["basis"].id, fields["acquired"].id]

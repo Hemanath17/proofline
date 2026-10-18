@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from proofline.packet import Packet, ReturnVersion
-from proofline.provenance.resolver import resolve
+from proofline.provenance.resolver import UnresolvedReferenceError, resolve
 
 
 @dataclass(frozen=True)
@@ -86,6 +86,23 @@ def _documents_for_line(
     return documents
 
 
+def _documents_for_line_lenient(
+    packet: Packet, rv: ReturnVersion, line_sources: list[str], version: str
+) -> set[str]:
+    """Like `_documents_for_line`, but a dangling ref on this line doesn't
+    discard the line's *other*, resolvable sources -- a sweep over every
+    line in the return version (to answer a question about a different
+    line or document) shouldn't even partially blind itself to a line's
+    good refs just because one of that same line's other refs is bad."""
+    documents: set[str] = set()
+    for source_ref in line_sources:
+        try:
+            documents |= _documents_behind_source(packet, rv, source_ref, version)
+        except UnresolvedReferenceError:
+            continue
+    return documents
+
+
 def _other_sources_for_line(
     packet: Packet, rv: ReturnVersion, line_sources: list[str], version: str
 ) -> tuple[OtherSource, ...]:
@@ -101,11 +118,19 @@ def _other_sources_for_line(
 def _documents_used_by_any_line(
     packet: Packet, rv: ReturnVersion, version: str
 ) -> frozenset[str]:
+    """The documents behind any line's sources, across the whole return
+    version -- used only to detect "excluded" duplicates (see module
+    docstring). This sweep must tolerate a dangling ref anywhere: one bad
+    ref on one line shouldn't make every other line's trace fail too, and
+    (using the lenient per-ref variant) shouldn't even discard that same
+    line's *other* good refs. The line actually being traced still raises
+    on its own dangling ref, in `_documents_for_line` (strict), called
+    directly from `trace_line`."""
     cached = rv.get_documents_used_by_any_line_cache()
     if cached is None:
         documents: set[str] = set()
         for line in rv.lines:
-            documents |= _documents_for_line(packet, rv, line.sources, version)
+            documents |= _documents_for_line_lenient(packet, rv, line.sources, version)
         cached = frozenset(documents)
         rv.set_documents_used_by_any_line_cache(cached)
     return cached
@@ -153,12 +178,18 @@ def trace_line(packet: Packet, line_key: str, version: str = "v3") -> LineTrace:
 def trace_document(
     packet: Packet, document_id: str, version: str = "v3"
 ) -> DocumentTrace:
+    """Which lines use this document. Like `_documents_used_by_any_line`,
+    this has to check every line in the return version to answer a
+    question about one unrelated document, so a dangling ref anywhere must
+    not make tracing *this* document fail -- the lenient per-ref variant
+    skips only the bad ref, not that whole line's other, resolvable ones."""
     rv = packet.return_version(version)
-    lines_using = tuple(
-        line.key
-        for line in rv.lines
-        if document_id in _documents_for_line(packet, rv, line.sources, version)
-    )
+    lines_using_list: list[str] = []
+    for line in rv.lines:
+        documents = _documents_for_line_lenient(packet, rv, line.sources, version)
+        if document_id in documents:
+            lines_using_list.append(line.key)
+    lines_using = tuple(lines_using_list)
     used = len(lines_using) > 0
 
     note: str | None = None

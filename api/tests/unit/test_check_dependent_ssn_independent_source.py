@@ -193,3 +193,88 @@ def test_ssn_compared_digits_only_ignores_dash_formatting() -> None:
     )
 
     assert run(packet) == []
+
+
+def test_ssn_typo_duplicated_across_three_w2s_produces_one_finding_not_three() -> None:
+    """A taxpayer SSN typo shouldn't produce one finding per W-2 -- all
+    three disagreeing W-2s are evidence for the same single claim."""
+    household = minimal_household(
+        people=[
+            Person(
+                id="taxpayer", role="taxpayer", name="Test Taxpayer", ssn="000-00-0001"
+            ),
+        ]
+    )
+    documents = [
+        Document(
+            id=f"D0{i}",
+            title="W-2",
+            document_type="W-2",
+            belongs_to="taxpayer",
+            page_count=1,
+            extraction=Extraction(status="extracted", values=1),
+        )
+        for i in (1, 2, 3)
+    ]
+    extracted_values = [
+        ExtractedValue(
+            id=f"ev-000{i}",
+            document_id=f"D0{i}",
+            page=1,
+            field="employee_ssn",
+            value="000-00-0009",
+            value_type="ssn",
+            confidence=0.99,
+        )
+        for i in (1, 2, 3)
+    ]
+    packet = minimal_packet(
+        household=household, documents=documents, extracted_values=extracted_values
+    )
+
+    findings = run(packet)
+
+    assert len(findings) == 1
+    assert {"ev-0001", "ev-0002", "ev-0003"} <= set(findings[0].evidence_refs)
+
+
+def test_prior_year_entry_with_missing_ssn_does_not_crash_and_keeps_other_findings() -> (
+    None
+):
+    """A prior-year dependent entry that matches by name but has no
+    recorded SSN at all must not crash the whole check -- it's treated as
+    no prior-year comparison, and a different person's real, independently
+    confirmed error must still come through."""
+    household = minimal_household(
+        people=[
+            Person(
+                id="taxpayer", role="taxpayer", name="Test Taxpayer", ssn="000-00-0001"
+            ),
+            Person(
+                id="dep1", role="dependent", name="No SSN Dependent", ssn="000-00-0002"
+            ),
+            Person(
+                id="dep2",
+                role="dependent",
+                name="Real Error Dependent",
+                ssn="111-22-3333",
+            ),
+        ]
+    )
+    documents = [_identity_document("D50", "dependent:dep2")]
+    extracted_values = [_ssn_value("D50", "111-22-3399", 1)]
+    packet = minimal_packet(
+        household=household,
+        documents=documents,
+        extracted_values=extracted_values,
+        prior_years={
+            "return_2024": {
+                "dependents": [{"name": "No SSN Dependent"}]  # no "ssn" key at all
+            }
+        },
+    )
+
+    findings = run(packet)
+
+    assert len(findings) == 1
+    assert [c.key for c in findings[0].claims] == ["household:dep2:ssn"]

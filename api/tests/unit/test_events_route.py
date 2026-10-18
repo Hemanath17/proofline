@@ -50,3 +50,27 @@ def test_read_missing_event_returns_404(client: TestClient) -> None:
 
     response = client.get(f"/api/events/{uuid.uuid4()}")
     assert response.status_code == 404
+
+
+def test_events_route_returns_503_not_500_when_the_database_is_down(
+    client: TestClient,
+) -> None:
+    """A write that fails because the database is down must come back as
+    503 "database unreachable", not a bare 500 -- the app-level exception
+    handler (for SQLAlchemy's OperationalError) protects routes other than
+    /api/health too, without this route needing its own try/except."""
+    broken_engine = create_engine("sqlite:////nonexistent/path/does-not-exist.db")
+
+    def broken_get_session() -> Iterator[Session]:
+        with Session(broken_engine) as session:
+            yield session
+
+    app.dependency_overrides[get_session] = broken_get_session
+
+    response = client.post(
+        "/api/events",
+        json={"event_type": "test_event", "payload": {"foo": "bar"}},
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "database unreachable"}

@@ -68,7 +68,13 @@ def _prior_year_dependent_index_and_ssn(
     dependents = packet.prior_years.return_2024.get("dependents", [])
     for index, prior in enumerate(dependents):
         if prior.get("name", "").strip().lower() == person_name.strip().lower():
-            return index, prior.get("ssn")
+            prior_ssn = prior.get("ssn")
+            if prior_ssn is None:
+                # A name match with no recorded SSN isn't a usable prior-year
+                # comparison -- treat it the same as no prior-year entry at
+                # all, rather than letting a blank value crash the check.
+                return None
+            return index, prior_ssn
     return None
 
 
@@ -82,6 +88,17 @@ def _efile_rejection_index_mentioning(packet: Packet, person_name: str) -> int |
     return None
 
 
+def _source_label(disagreeing: list[tuple[str, str]]) -> str:
+    kinds = {kind for _, kind in disagreeing}
+    parts = []
+    if "identity_document" in kinds:
+        parts.append("an identity document")
+    if "w2_box_a" in kinds:
+        w2_count = sum(1 for _, kind in disagreeing if kind == "w2_box_a")
+        parts.append("their own W-2" if w2_count == 1 else "their own W-2s")
+    return " and ".join(parts)
+
+
 def run(packet: Packet) -> list[CheckResult]:
     findings: list[CheckResult] = []
 
@@ -90,12 +107,18 @@ def run(packet: Packet) -> list[CheckResult]:
         independent_sources = _independent_ssn_sources(packet, person)
 
         any_independent_match = False
+        disagreeing: list[tuple[str, str]] = []
         for evidence_ref, source_kind, source_ssn in independent_sources:
             if _digits_only(source_ssn) == household_ssn:
                 any_independent_match = True
-                continue
+            else:
+                disagreeing.append((evidence_ref, source_kind))
 
-            evidence_refs = [f"household:{person.id}", evidence_ref]
+        if disagreeing:
+            # One finding per person, however many independent sources
+            # disagree -- a typo on a person with three W-2s shouldn't
+            # produce three findings for the same underlying claim.
+            evidence_refs = [f"household:{person.id}", *(ref for ref, _ in disagreeing)]
             if person.role == "dependent":
                 prior_match = _prior_year_dependent_index_and_ssn(packet, person.name)
                 if prior_match is not None:
@@ -108,11 +131,7 @@ def run(packet: Packet) -> list[CheckResult]:
             if rejection_index is not None:
                 evidence_refs.append(f"agency:/efile/{rejection_index}")
 
-            source_label = (
-                "an identity document"
-                if source_kind == "identity_document"
-                else "their own W-2"
-            )
+            source_label = _source_label(disagreeing)
             findings.append(
                 CheckResult(
                     check_id=CHECK_ID,
@@ -143,8 +162,8 @@ def run(packet: Packet) -> list[CheckResult]:
 
         if any_independent_match or independent_sources:
             # Either an independent source confirms the household record, or
-            # every independent source that disagreed already produced an
-            # error above -- in both cases the prior-year return adds
+            # every independent source that disagreed already produced the
+            # single error above -- in both cases the prior-year return adds
             # nothing further.
             continue
 
