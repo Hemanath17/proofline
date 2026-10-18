@@ -1,5 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
   "permissions": {
     "allow": [
       "Bash(pytest *)",
@@ -9,6 +13,7 @@
       "Bash(uvicorn *)",
       "Bash(ruff *)",
       "Bash(npm run *)",
+      "Bash(npm --prefix web run *)",
       "Bash(npx tsc *)",
       "Bash(git status)",
       "Bash(git status *)",
@@ -24,11 +29,12 @@
       "Bash(rm *)",
       "Bash(pip install *)",
       "Bash(npm install *)",
+      "Bash(npm --prefix web install *)",
       "Bash(vercel *)"
     ],
     "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
       "Edit(/api/data/packet.json)",
       "Bash(git push --force *)",
       "Bash(rm -rf *)"

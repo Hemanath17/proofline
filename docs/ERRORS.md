@@ -3,23 +3,23 @@
 Status: confirmed (independent evidence), possible (needs evidence or judgment), handled (engine already correct), lead (not yet checked).
 
 ## Confirmed
-E1. Dependent SSN typed wrong (blocks filing)
+E1. Dependent SSN typed wrong (blocks filing) -- check: `DEPENDENT_SSN_INDEPENDENT_SOURCE`
 - Household record: Theo 666-74-3309. Social Security card (D71, ev-1080) and the 2024 return: 666-74-3390
 - The scripted e-file was rejected for this (R0000-504-02, 2026-07-13); the client confirmed the typo (msg-10)
 
-E2. RSU lots at zero basis (tax amount)
+E2. RSU lots at zero basis (tax amount) -- check: `RSU_LOT_ZERO_BASIS_SUPPLEMENT_AVAILABLE`
 - F8949.B.N1, F8949.B.N3, F8949.E.N4 use basis 0.00 from the Northlake 1099-B (D28, noncovered)
 - The Corvane supplement (D11, ev-0066, ev-0068, ev-0070) gives 19,100, 19,100 and 9,420: 47,620 in total
 - W-2 box 14 RSU 38,200 (D08, ev-0027) matches the two 2025 vests
 - Estimate: about 15,536 federal (short-term 0.348, long-term 0.238), about 1,619 California
 
-E3. 1099-K receipts counted twice (tax amount)
+E3. 1099-K receipts counted twice (tax amount) -- check: `THIRD_PARTY_PROCESSOR_INCOME_DOUBLE_COUNTED`
 - SchC.1 gross receipts 163,700 = books income 151,300 (D14, ev-0103) + Form 1099-K 12,400 (D21, ev-0127)
 - D15 page 3: 12,400 of Atlas Outdoor Gear's 41,200 arrived through Paywell and was deposited gross, so it is already in the books
 - Reconciliation: third-party forms 154,400 (1099-NEC 142,000 + 1099-K 12,400) minus 12,400 reported twice plus 9,300 from clients with no 1099 = 151,300, the books
 - Estimate: about 4,402 federal (0.355). The 2028 IRS letter asks for this reconciliation
 
-E4. Brokerage page not extracted (tax amount)
+E4. Brokerage page not extracted (tax amount) -- check: `DOCUMENT_TOTAL_DISAGREES_WITH_EXTRACTED_DETAIL`
 - D31 page 32 was not read: lot M18, Ironwood REIT 6.8 shares, proceeds 250.00, basis 310.00, short-term noncovered
 - Summary proceeds 71,965.00 (ev-0703) against extracted detail 71,715.00
 

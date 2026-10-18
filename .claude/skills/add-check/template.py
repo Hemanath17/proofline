@@ -1,35 +1,35 @@
 """
 Template for a Proofline check.
 
-Copy this file to api/checks/<check_name>.py and replace the example logic.
-The example below is a real, general rule: a dependent's SSN this year should
-match the SSN on last year's filed return. It never mentions a specific person,
-number or ID from the packet.
+Copy this file to api/proofline/checks/<check_name>.py and replace the example
+logic. The example below is a real, general rule: a dependent's SSN this year
+should match the SSN on last year's filed return. It never mentions a specific
+person, number or ID from the packet.
 """
 
-from api.checks.models import CheckResult
+from proofline.checks.models import CheckResult
+from proofline.packet import Packet
+from proofline.provenance.claim_identity import household_fact
 
 CHECK_ID = "DEPENDENT_SSN_PRIOR_YEAR"
 CHECK_VERSION = 1
 
 
-def run(packet: dict) -> list[CheckResult]:
+def run(packet: Packet) -> list[CheckResult]:
     findings: list[CheckResult] = []
 
     # Step 1: collect this year's dependents, as the client entered them.
-    people = packet["household"]["people"]
-    current_dependents = []
-    for person in people:
-        if person.get("role") == "dependent":
-            current_dependents.append(person)
+    current_dependents = [
+        person for person in packet.household.people if person.role == "dependent"
+    ]
 
     # Step 2: collect last year's dependents, from the filed prior-year return.
-    prior_dependents = packet["prior_years"]["return_2024"].get("dependents", [])
+    prior_dependents = packet.prior_years.return_2024.get("dependents", [])
 
     # Step 3: compare each current dependent with the prior-year dependent of the same name.
     for person in current_dependents:
-        current_name = person["name"]
-        current_ssn = person["ssn"]
+        current_name = person.name
+        current_ssn = person.ssn
 
         for prior_index, prior in enumerate(prior_dependents):
             prior_name = prior["name"]
@@ -51,9 +51,10 @@ def run(packet: dict) -> list[CheckResult]:
                 finding_type="possible_discrepancy",
                 severity="blocks_filing",
                 evidence_refs=[
-                    f"household:{person['id']}",
+                    f"household:{person.id}",
                     f"py:/return_2024/dependents/{prior_index}",
                 ],
+                claims=[household_fact(person.id, "ssn")],
                 observed=f"This year's organizer lists {current_name} with a different SSN than last year's filed return.",
                 expected="A dependent's SSN is the same every year.",
                 tax_effect=None,

@@ -15,6 +15,38 @@
   - [x] Note the cold-start time
   - **Note:** `POST /api/events` and `GET /api/events/{id}` are throwaway proof-of-deploy routes — they write directly through `repository.py` with no revision check, no role check, no action-service transaction. Step 4 must remove them or put them behind the real action service and roles before anything else depends on them.
 
+- [x] Part 0: fix outdated config
+  - [x] `.claude/rules/checks.md`: paths, `CheckResult` location, 9 C2-scope `area` values, `claims` field, `Decimal` parsing, test path
+  - [x] `.claude/skills/add-check/SKILL.md`: paths and test command
+  - [x] `.claude/skills/add-check/template.py`: import, typed `Packet` param, `claims` example
+  - [x] `.claude/skills/add-endpoint/SKILL.md`: route/security/actions paths, test path and command
+  - [x] `.claude/hooks/format.sh`: Prettier path under `web/`
+  - [x] `.claude/settings.json`: npm --prefix web allow/ask, recursive `.env` deny globs
+  - [x] `api/proofline/db/connection.py`: `.env.local` resolved from repo root, not cwd
+  - [x] Showed the diff of all seven
+- [x] Step 2: the packet and the provenance resolver
+  - [x] `proofline/packet.py`: Pydantic models, loaded once and cached
+  - [x] `proofline/provenance/resolver.py`: every reference format
+  - [x] `proofline/provenance/claim_identity.py`: the CONTRACTS.md claim identity table
+  - [x] `proofline/provenance/tracing.py`: trace both directions + dependency graph
+  - [x] `api/tests/unit/factories.py`: shared `minimal_packet` builder
+  - [x] Tests: `test_packet.py`, `test_resolver.py` (incl. 0-unresolved sweep), `test_claim_identity.py`, `test_tracing.py`
+  - [x] Done when: 0 unresolved references, and `F1040.1a` traces to D08+D09 with D10 excluded/noted
+- [x] Step 3: checks for the confirmed errors
+  - [x] `proofline/checks/models.py`: updated `CheckResult`
+  - [x] E1 `DEPENDENT_SSN_INDEPENDENT_SOURCE` (fixture, check, tests)
+  - [x] E2 `RSU_LOT_ZERO_BASIS_SUPPLEMENT_AVAILABLE` (fixture, check, tests)
+  - [x] E3 `THIRD_PARTY_PROCESSOR_INCOME_DOUBLE_COUNTED` (fixture, check, tests)
+  - [x] E4 `DOCUMENT_TOTAL_DISAGREES_WITH_EXTRACTED_DETAIL` (fixture, check, tests)
+  - [x] `proofline/checks/runner.py`
+  - [x] `proofline/checks/baseline.py` + `api/fixtures/baseline_expectations.json`
+  - [x] `test_checks_runner.py`, `test_checks_baseline.py`, `test_checks_no_hardcoded_values.py`
+  - [x] Done when: all four confirmed errors found (recall 4/4, precision 1.00), baseline prints, no hard-coded packet values in `api/proofline/checks/`
+  - **Note:** checks read `packet.return_versions[-1]` as "the current version" rather than a literal `"v3"` string, so they keep working as new versions are added.
+- [x] End of step: pytest output (53 passed), reviewer agent, `/deep-test`, `docs/ERRORS.md` check ids, `docs/DECISIONS.md`, `docs/AI_USAGE.md`
+
+## Now: Step 4, events/current state/action service/roles/redaction
+
 ## Questions still open
 - When does a corrected return need a new client signature? (Check IRS Publication 1345.)
 - Does the packet go into the public repo, or load from Vercel Blob?

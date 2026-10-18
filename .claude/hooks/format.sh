@@ -17,7 +17,7 @@ if [ -z "$FILE_PATH" ] || [ ! -f "$FILE_PATH" ]; then
 fi
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
-PRETTIER_BIN="$PROJECT_DIR/node_modules/.bin/prettier"
+PRETTIER_BIN="$PROJECT_DIR/web/node_modules/.bin/prettier"
 
 case "$FILE_PATH" in
   *.py)

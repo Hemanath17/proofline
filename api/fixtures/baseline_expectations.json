@@ -1,0 +1,35 @@
+{
+  "confirmed": [
+    { "error_id": "E1", "check_id": "DEPENDENT_SSN_INDEPENDENT_SOURCE" },
+    { "error_id": "E2", "check_id": "RSU_LOT_ZERO_BASIS_SUPPLEMENT_AVAILABLE" },
+    { "error_id": "E3", "check_id": "THIRD_PARTY_PROCESSOR_INCOME_DOUBLE_COUNTED" },
+    { "error_id": "E4", "check_id": "DOCUMENT_TOTAL_DISAGREES_WITH_EXTRACTED_DETAIL" }
+  ],
+  "possible": [
+    {
+      "error_id": "E5",
+      "description": "Digital asset lot with no basis",
+      "evidence_refs": ["ev-0919", "msg-07"]
+    },
+    {
+      "error_id": "E6",
+      "description": "S-corporation basis rolled forward from gaps",
+      "evidence_refs": ["D40"]
+    },
+    {
+      "error_id": "E7",
+      "description": "Questionnaire answer conflicts with documents",
+      "evidence_refs": ["qa-14"]
+    },
+    {
+      "error_id": "E8",
+      "description": "Outside filings",
+      "evidence_refs": ["F8938.1.max", "D36"]
+    },
+    {
+      "error_id": "E9",
+      "description": "Handwritten charity receipt",
+      "evidence_refs": ["D64", "ev-1049", "msg-08"]
+    }
+  ]
+}

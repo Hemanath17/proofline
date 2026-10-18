@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterator
+from pathlib import Path
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, URL, make_url
 from sqlalchemy.orm import Session
 
-load_dotenv(".env.local")
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+load_dotenv(_REPO_ROOT / ".env.local")
 
 _engine: Engine | None = None
 

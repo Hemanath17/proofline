@@ -1,0 +1,38 @@
+[
+  {
+    "check_id": "DOCUMENT_TOTAL_DISAGREES_WITH_EXTRACTED_DETAIL",
+    "check_version": 1,
+    "area": "investments",
+    "scope": "document",
+    "finding_type": "error",
+    "severity": "tax_amount",
+    "evidence_refs": [
+      "D31",
+      "ev-0703",
+      "ev-0708",
+      "ev-0717",
+      "ev-0726",
+      "ev-0735",
+      "ev-0744",
+      "ev-0753",
+      "ev-0762",
+      "ev-0771",
+      "ev-0780",
+      "ev-0789",
+      "ev-0798",
+      "ev-0807",
+      "ev-0816",
+      "ev-0825",
+      "ev-0834",
+      "ev-0843",
+      "ev-0852"
+    ],
+    "claims": [],
+    "observed": "D31's own 1099-B summary total proceeds is 71965.0, but the sum of its extracted proceeds detail is 71715.0 -- a difference of 250.0. Page 32 ('Additional transactions') was not read by the pipeline.",
+    "expected": "A document's own summary total should equal the sum of its own extracted line-level detail.",
+    "tax_effect": null,
+    "impact_unknown": true,
+    "limitations": "Only compares the document's own summary and detail; doesn't know what the missing page's item actually is.",
+    "recommended_action": "Read the unread page of D31 and add the missing transaction before filing."
+  }
+]
