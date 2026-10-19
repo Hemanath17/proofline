@@ -1,0 +1,140 @@
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+@media (max-width: 800px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.loading,
+.error {
+  color: var(--ink-2);
+  padding: var(--space-2);
+}
+
+.error {
+  color: var(--blocking);
+}
+
+.numberCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lineKey {
+  font-size: 16px;
+}
+
+.label {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.valueRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.value {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.adjustmentNote {
+  font-size: 12px;
+  color: var(--changed);
+}
+
+.rule {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.section {
+  margin-top: var(--space-2);
+}
+
+.sectionTitle {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  margin-bottom: 4px;
+}
+
+.linkList {
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
+.linkButton {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 2px 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  min-height: 24px;
+  text-align: left;
+}
+
+.cardList {
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.card {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.cardKind {
+  color: var(--ink-2);
+}
+
+.sourcePane {
+  min-width: 0;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: var(--space-1);
+}
+
+.tab {
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  min-height: 24px;
+}
+
+.tabActive {
+  background: var(--info-tint);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.pageStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

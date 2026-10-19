@@ -123,3 +123,78 @@ def test_record_check_run_denied_for_client_and_ai_assistant(actor: Actor) -> No
 def test_unknown_action_raises_value_error() -> None:
     with pytest.raises(ValueError):
         check_permission(PARTNER, "no_such_action")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("actor", [REVIEWER, PARTNER, QUALITY_REVIEWER])
+def test_sign_off_an_area_allowed_for_reviewer_partner_quality_reviewer(
+    actor: Actor,
+) -> None:
+    check_permission(actor, "sign_off", scope="investments")
+
+
+@pytest.mark.parametrize("actor", [PREPARER, MARCUS, FIRM_ADMIN, CLIENT, AI_ASSISTANT])
+def test_sign_off_an_area_denied_for_everyone_else(actor: Actor) -> None:
+    with pytest.raises(PermissionDenied) as exc_info:
+        check_permission(actor, "sign_off", scope="investments")
+    assert exc_info.value.rule == (
+        "only a reviewer, partner or quality reviewer may sign an area"
+    )
+
+
+def test_sign_off_tax_computation_allowed_only_for_partner() -> None:
+    check_permission(PARTNER, "sign_off", scope="tax_computation")
+
+
+@pytest.mark.parametrize("actor", [REVIEWER, QUALITY_REVIEWER, PREPARER])
+def test_sign_off_tax_computation_denied_for_a_reviewer(actor: Actor) -> None:
+    with pytest.raises(PermissionDenied) as exc_info:
+        check_permission(actor, "sign_off", scope="tax_computation")
+    assert exc_info.value.rule == "only the partner may sign tax computation"
+
+
+@pytest.mark.parametrize("actor", [REVIEWER, PARTNER, QUALITY_REVIEWER])
+def test_confirm_carryover_allowed_for_reviewer_partner_quality_reviewer(
+    actor: Actor,
+) -> None:
+    check_permission(actor, "confirm_carryover")
+
+
+@pytest.mark.parametrize("actor", [PREPARER, MARCUS, FIRM_ADMIN, CLIENT, AI_ASSISTANT])
+def test_confirm_carryover_denied_for_everyone_else(actor: Actor) -> None:
+    with pytest.raises(PermissionDenied):
+        check_permission(actor, "confirm_carryover")
+
+
+def test_confirm_disposition_allowed_only_for_preparer() -> None:
+    check_permission(PREPARER, "confirm_disposition")
+
+
+def test_confirm_disposition_allowed_for_a_preparer_without_clearance() -> None:
+    # Confirming a disposition is a role rule, not a clearance rule --
+    # Marcus (preparer, no clearance) may still confirm one; redaction on
+    # the response is a separate concern (W2), handled by redact_for_actor.
+    check_permission(MARCUS, "confirm_disposition")
+
+
+@pytest.mark.parametrize(
+    "actor", [REVIEWER, PARTNER, QUALITY_REVIEWER, FIRM_ADMIN, CLIENT]
+)
+def test_confirm_disposition_denied_for_everyone_else(actor: Actor) -> None:
+    with pytest.raises(PermissionDenied) as exc_info:
+        check_permission(actor, "confirm_disposition")
+    assert exc_info.value.rule == "only the preparer may confirm a document disposition"
+
+
+@pytest.mark.parametrize(
+    "actor", [PREPARER, REVIEWER, PARTNER, QUALITY_REVIEWER, MARCUS]
+)
+@pytest.mark.parametrize("action", ["bulk_verify", "undo_bulk_verify"])
+def test_bulk_verify_allowed_for_any_detail_reviewer(actor: Actor, action: str) -> None:
+    check_permission(actor, action)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("actor", [FIRM_ADMIN, CLIENT, AI_ASSISTANT])
+@pytest.mark.parametrize("action", ["bulk_verify", "undo_bulk_verify"])
+def test_bulk_verify_denied_for_everyone_else(actor: Actor, action: str) -> None:
+    with pytest.raises(PermissionDenied):
+        check_permission(actor, action)  # type: ignore[arg-type]

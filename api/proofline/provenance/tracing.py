@@ -21,6 +21,7 @@ never a bare KeyError.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from proofline.packet import Packet, ReturnVersion
 from proofline.provenance.resolver import UnresolvedReferenceError, resolve
@@ -42,6 +43,11 @@ class OtherSource:
 class LineTrace:
     line_key: str
     version: str
+    value: Any
+    label: str
+    rule: str
+    inputs: tuple[str, ...]
+    used_by: tuple[str, ...]
     primary_sources: frozenset[str]
     other_sources: tuple[OtherSource, ...]
     excluded: tuple[ExcludedDocument, ...]
@@ -168,6 +174,11 @@ def trace_line(packet: Packet, line_key: str, version: str = "v3") -> LineTrace:
     return LineTrace(
         line_key=line_key,
         version=version,
+        value=line.value,
+        label=line.label,
+        rule=line.rule,
+        inputs=tuple(line.inputs),
+        used_by=tuple(sorted(dependents_of(rv, line_key))),
         primary_sources=frozenset(primary_sources),
         other_sources=other_sources,
         excluded=tuple(excluded),

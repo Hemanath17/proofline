@@ -20,6 +20,11 @@ Role = Literal[
     "quality_reviewer",
     "client",
     "ai_assistant",
+    # Step 5: a synthetic actor for transitions CONTRACTS.md C1 marks
+    # "System" (e.g. a case clearing because its finding stopped firing) --
+    # never built from the packet, never staff, never returned by
+    # `load_actors`.
+    "system",
 ]
 
 STAFF_ROLES: frozenset[Role] = frozenset(

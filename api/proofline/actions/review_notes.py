@@ -53,6 +53,7 @@ def add_review_note(
         opened_at=when,
         status="open",
         revision=1,
+        body=body,
     )
     insert_review_note(session, note)
     event = insert_event(
@@ -87,10 +88,14 @@ def respond_review_note(
     if note is None:
         raise EntityNotFound(entity_id)
     if note.status == "resolved":
-        raise ActionConflict("cannot respond to a resolved note", current=note)
+        raise ActionConflict(
+            "cannot respond to a resolved note", current=note.to_dict()
+        )
     body = require(payload, "body")
     when = occurred_at or datetime.now(UTC)
-    updated = apply_revision_cas(session, ReviewNote, entity_id, expected_revision, {})
+    updated = apply_revision_cas(
+        session, ReviewNote, entity_id, expected_revision, {"body": body}
+    )
     event = insert_event(
         session,
         "review_note_responded",

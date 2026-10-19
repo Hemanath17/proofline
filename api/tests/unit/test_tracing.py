@@ -44,6 +44,25 @@ def test_trace_document_d08_reports_the_line_it_feeds() -> None:
     assert "F1040.1a" in trace.lines_using
 
 
+def test_trace_line_carries_value_label_rule_inputs_and_used_by() -> None:
+    """Step 6: the trace API's number card needs the engine value, the
+    rule, the immediate inputs (one level), and the immediate used-by (one
+    level) -- all already on the packet's Line model, just not previously
+    surfaced on LineTrace."""
+    packet = load_packet()
+    trace = trace_line(packet, "SchD.2")
+
+    assert trace.value == 37720
+    assert trace.rule == "R-CARRY"
+    assert trace.inputs == ("F8949.B.total",)
+    assert isinstance(trace.label, str) and trace.label
+
+    total_trace = trace_line(packet, "F8949.B.total")
+    assert total_trace.rule == "R-SUM"
+    assert set(total_trace.inputs) == {"F8949.B.N1", "F8949.B.N3"}
+    assert "SchD.2" in total_trace.used_by
+
+
 def test_dependency_graph_and_dependents_are_inverses() -> None:
     packet = load_packet()
     rv = packet.return_version("v3")

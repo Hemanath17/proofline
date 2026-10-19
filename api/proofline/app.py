@@ -10,10 +10,14 @@ from proofline.db.connection import DatabaseUnavailable
 from proofline.db.repository import EntityNotFound, StaleRevision
 from proofline.packet import load_packet
 from proofline.routes import (
+    actors,
+    areas,
+    cases,
     checks,
     documents,
     health,
     household,
+    return_info,
     reveal,
     review_notes,
     trace,
@@ -32,6 +36,10 @@ app.include_router(trace.router, prefix="/api")
 app.include_router(checks.router, prefix="/api")
 app.include_router(review_notes.router, prefix="/api")
 app.include_router(reveal.router, prefix="/api")
+app.include_router(actors.router, prefix="/api")
+app.include_router(cases.router, prefix="/api")
+app.include_router(return_info.router, prefix="/api")
+app.include_router(areas.router, prefix="/api")
 
 install_logging_filter()
 
@@ -53,17 +61,27 @@ async def _permission_denied(request: Request, exc: PermissionDenied) -> JSONRes
     return JSONResponse(status_code=403, content={"detail": exc.rule})
 
 
-def _conflict_response(request: Request, detail: str, current: Any) -> JSONResponse:
+def _conflict_response(
+    request: Request, detail: str, current: dict[str, Any] | None
+) -> JSONResponse:
     """Shared by both 409 cases below: a stale revision and a status
     conflict differ in *why* the write was refused, but both carry the
     entity's current state, redacted for whichever actor asked (the actor
     is read from `request.state`, stashed there by
     `proofline.security.dependencies.get_current_actor`, since a
-    dependency's return value isn't otherwise reachable from a handler)."""
+    dependency's return value isn't otherwise reachable from a handler).
+
+    `current` must already be a plain dict (or `None`) by the time it
+    gets here -- `StaleRevision`/`ActionConflict` only ever carry one,
+    captured by the raise site while its session was still open. This
+    handler runs after that session has closed (the request's `finally`
+    already ran), so touching an ORM row here instead would raise
+    `DetachedInstanceError` and turn every 409 into a bare 500 -- exactly
+    what happened before this was fixed, confirmed over HTTP against real
+    Postgres under two racing responses at the same revision."""
     body: dict[str, Any] = {"detail": detail}
-    current_dict = current.to_dict() if hasattr(current, "to_dict") else None
-    if current_dict is not None:
-        body["current_state"] = current_dict
+    if current is not None:
+        body["current_state"] = current
     actor = getattr(request.state, "actor", None)
     if actor is not None:
         body = redact_for_actor(actor, load_packet(), body)

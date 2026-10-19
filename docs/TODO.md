@@ -98,6 +98,80 @@
   - [x] Update docs/DECISIONS.md and docs/AI_USAGE.md
   - **Note:** once `TEST_DATABASE_URL` actually lands in `.env.local`, re-run `pytest api -m pg -q` (should show tests actually running, not skipped) and `/simulate role-abuse concurrency leak-scan failure migration` against it, then write `docs/SIMULATION_REPORT.md`
 
+## Now: Steps 5-7, cases/queue, tracing/documents, areas/sign-off/calculation
+- [x] Part 0: `docs/UX.md` written verbatim from the user's spec
+
+### Step 5: cases and the review queue (C1)
+- [x] Migration: `cases`, `case_proposals`, `case_decisions` tables
+- [x] Migration: `review_notes.body` column (+ backfill plan n/a, new table)
+- [x] Migration: `last_seen` table (actor_id, entity_type, entity_id, seen_at), no trigger
+- [x] `alembic check` clean after each migration (against throwaway local Postgres)
+- [x] `proofline/analysis/grouping.py`: `root_cause_key()`, finding-to-case matching
+- [x] `proofline/actions/cases.py`: `sync_cases_from_findings`, all C1 transitions (pick_up, ask_client, client_answered, submit_proposal, return, approve, partner_approve, partner_return, clear, reopen, reassign), resolution-type validators
+- [x] `proofline/security/permissions.py`: C1 rules added to `check_permission`
+- [x] `proofline/actions/service.py`: new `_HANDLERS` entries wired through `perform()`
+- [x] `proofline/actions/review_notes.py` + `db/models.py`: `body` stored in current state
+- [x] `proofline/db/repository.py`: `record_last_seen`, `get_last_seen`
+- [x] `routes/cases.py`: `GET /api/cases` (tabs/grouping/counts), `GET /api/cases/{id}`, one POST per C1 action
+- [x] `routes/actors.py`: `GET /api/actors` for the role switcher
+- [x] `db/rebuild.py`: replay handlers for every new case event + `review_notes.body`
+- [x] `changed_since_last_seen` + `change_summary` wired into queue/case responses (area/document land in Step 6-7)
+- [x] Tests: one per C1 transition row (`test_action_cases.py`, 44 tests), resolution-type validation, root-cause grouping/clearing, rebuild fidelity, leak scan extended to `/api/cases` and `/api/actors`
+- [x] `web/package.json`: add `openapi-typescript` devDependency
+- [x] `web/lib/api-types.ts` generated from running API's OpenAPI schema (via `api/export_openapi.py` + `npm run gen-api-types`)
+- [x] `web/lib/api-client.ts`, `web/lib/session.ts` (X-Proofline-Actor, localStorage role switcher via `useSyncExternalStore`)
+- [x] App shell: `web/app/layout.tsx`, left rail, top bar, role switcher, keyboard layer, command menu, Trace-drawer slot (slot established, drawer UI itself is Step 6)
+- [x] `web/app/queue/page.tsx` (S1) -- tabs, severity groups, J/K/Enter/Esc//, list+detail split with URL-reflected selection
+- [x] `web/app/cases/[id]/page.tsx` (S2) -- full page wrapping the shared `CaseDetailPanel`
+- [x] Extra API routes added to support the shell/screens: `GET /api/actors`, `GET /api/return`, `GET /api/cases/{id}/activity`
+- [x] `npm run typecheck` and `npm run lint` both clean (one lint rule, `react-hooks/set-state-in-effect`, downgraded to warn -- see DECISIONS.md)
+- [x] Verified with a real dev server (uvicorn + `npm run dev` against the throwaway Postgres): fonts load, `/api` rewrite works, queue/case pages render, `/api/cases/sync` against the real packet produces the 4 expected cases (incl. RSU tax effect 15,535.56/1,619.08 matching ERRORS.md) with no duplication on rerun
+- [x] Playwright script: screenshots + W1 click-count for Daniel's RSU approval (npx, not a package.json dep) -- `screenshots.js`, run successfully against the real dev servers (chromium-1208, the complete cached build; chromium-1148's cached copy turned out to have a corrupt/partial framework)
+- [x] Step 5 done-when: every C1 transition tested, W3 holds, screens render per UX -- confirmed visually via Playwright screenshots
+
+### Step 6: tracing and source documents
+- [x] `routes/trace.py`: `GET /api/trace/line/{key}` with full S4 payload (calculation stack, highlight boxes, excluded docs)
+- [x] `routes/documents.py`: `GET /api/documents/{id}` rendered pages + highlights + landed-in
+- [x] `web/components/TraceDrawer.tsx` + `web/app/trace/line/[key]/page.tsx` (S4)
+- [x] `web/app/documents/[id]/page.tsx`
+- [x] `web/components/TraceableNumber.tsx` shared component, used everywhere a number renders
+- [x] Extend leak-scan test to every new rendered page/endpoint (W2)
+- [x] Step 6 done-when: W2 holds, leak scan covers every rendered page
+
+### Step 7: areas, sign-off, calculation, documents, large detail (C2, C3, C4)
+- [x] Migration: `sign_offs`, `adjustments`, `document_dispositions` tables (`f1a9c6d2e4b7`), `claim_verifications` table (`066bc41a1488`, new this session -- see DECISIONS.md)
+- [x] `proofline/analysis/calculation.py`: C3 `workpaper_value()` (exact/estimate/what-if/adjusted labeling) -- proven against the real A1 RSU scenario
+- [x] `proofline/actions/sign_offs.py`: `sign_off`, `confirm_carryover`, change-pending detection -- wired into `_HANDLERS`/`check_permission` this session; fixed a permanent-block bug, a concurrency race (bare 500 instead of 409, with a new pg-marked test), and two fingerprint gaps (decisions/scope never actually compared) -- see DECISIONS.md
+- [x] `proofline/actions/disposition.py`: rule-based proposal (`analysis/disposition.py`, reusing `tracing.py`/`signoff.py`'s existing generic document matching) + `confirm_disposition` action
+- [x] `proofline/actions/bulk.py`: `bulk_verify` (all-or-nothing, new `claim_verifications` table) + `undo_bulk_verify` (reversing event)
+- [x] `routes/areas.py`: `GET /api/areas/{scope}`, sign-off/carryover/bulk-verify/undo POSTs; `routes/documents.py` extended with disposition fields
+- [x] `web/app/areas/[scope]/page.tsx` (S3): blocks, changes+carryover, tie-outs, grouped detail (flat, not grouped by issuer/box -- known gap, see DECISIONS.md), sign-off button with disabled reasons; `web/app/areas/page.tsx` rebuilt as a real scope list (was a Step 5 placeholder)
+- [x] `api/tests/acceptance/test_a1_rsu.py` -- full lifecycle, passes
+- [x] `api/tests/acceptance/test_a2_corrected_1099.py` -- full lifecycle, passes
+- [x] Step 7 done-when: A1 and A2 pass
+
+### Finish
+- [x] `pytest api -q -m "not eval"` x2 -- 410 passed, 8 skipped (pg), both times, no flakiness
+- [x] pg-marked tests against the throwaway local Postgres (`/tmp/proofline_test_pg:55432`) -- 8 passed, incl. the new sign-off race test (run 3x, no flakiness)
+- [x] `npm --prefix web run typecheck`, `npm --prefix web run lint` -- both clean (one pre-existing downgraded-to-warn rule, four instances incl. the new `AreaDetail.tsx`)
+- [x] `alembic -c api/alembic.ini check` against test database -- no drift
+- [x] Playwright screenshots: queue (Daniel), RSU case (Daniel), SSN case (Marcus), trace drawer F1040.1a, D31 document page, Investments area, areas list -> `/tmp/proofline_screenshots/` (not committed into `docs/screenshots/` since nothing is committed this session)
+- [x] Compared screenshots against `docs/UX.md` -- renders correctly; one known gap (flat detail table, not grouped by issuer/box) logged in DECISIONS.md rather than fixed under time pressure
+- [x] Ran `reviewer` agent -- found 3 real issues (`confirm_carryover` validated nothing about the document pair it confirmed, `undo_bulk_verify` could clobber an unrelated later re-verification, `confirm_disposition`'s lazy row-creation had the same uncaught-`IntegrityError` race class as `sign_off`'s), all fixed with new regression tests (two unit, one new pg-marked concurrency test) and logged in DECISIONS.md
+- [x] Ran `/deep-test` (focused on Step 7 per the skill's own "if empty, test everything" framing) -- found and fixed 2 real correctness gaps (fingerprints never wired to real data) and 1 real concurrency bug (uncaught IntegrityError -> bare 500), all logged in DECISIONS.md with new regression tests
+- [ ] Run `/simulate rsu corrected-1099 bulk-undo role-abuse leak-scan` against test database -- **not run this session**, time/scope cut; A1/A2 already cover rsu/corrected-1099 as automated tests, and leak-scan/role-abuse are covered by `test_leak_scan.py`/`test_permissions.py`, but the formal `/simulate` skill pass and `docs/SIMULATION_REPORT.md` are still open
+- [ ] Write `docs/SIMULATION_REPORT.md` -- blocked on the above
+- [x] Update `docs/TODO.md`, `docs/DECISIONS.md`, `docs/AI_USAGE.md`
+- [ ] Report migration command for the demo database; do not commit -- see end-of-session report
+
+### Blocked
+- `/simulate rsu corrected-1099 bulk-undo role-abuse leak-scan` and `docs/SIMULATION_REPORT.md` -- not run this session (time/scope cut after the deep-test pass found and fixed real bugs that took priority). The individual scenarios are substantially covered by existing automated tests (A1/A2 acceptance tests, `test_leak_scan.py`, `test_permissions.py`, the new bulk-verify/undo tests), but the formal simulate pass and its write-up haven't happened.
+- Area page large detail is a flat table, not grouped by issuer and box with an expand-to-lots summary row (docs/UX.md S3) -- functionally complete, confirmed via Playwright screenshot against the real Investments scope (300+ rows render correctly, trace/verify/bulk-verify all work), but not the compact grouped view the spec describes. See DECISIONS.md.
+- `confirm_carryover` doesn't independently verify "the source isn't weaker, and no judgment points at the old document" (CONTRACTS.md C2) -- trusts the reviewer's own judgment when they call it. See DECISIONS.md.
+- A broken tie-out is surfaced as a blocking reason but doesn't automatically open a case / reopen the scope (CONTRACTS.md C2). See DECISIONS.md.
+- The area page's "Changes" tab shows only changes since the last sign-off, not the full v1→v2→v3 history docs/UX.md describes.
+- "Nobody signs a scope that contains their own adjustment" (CONTRACTS.md C2) only actually fires for scope "investments" -- `line_claim_identity` only resolves Form 8949 lot claims today, so every other scope's own-adjustment check is a silent no-op. See DECISIONS.md.
+
 ## Questions still open
 - When does a corrected return need a new client signature? (Check IRS Publication 1345.)
 - Does the packet go into the public repo, or load from Vercel Blob?

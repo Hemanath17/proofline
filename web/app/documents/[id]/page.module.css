@@ -1,0 +1,75 @@
+.backLink {
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.error,
+.loading {
+  color: var(--ink-2);
+}
+
+.error {
+  color: var(--blocking);
+}
+
+.header {
+  margin: var(--space-2) 0 var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metaRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.dispositionPill {
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.section {
+  margin-bottom: var(--space-3);
+}
+
+.sectionTitle {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+
+.linkList {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.lineLink {
+  color: var(--accent);
+  font-size: 13px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 2px 8px;
+  display: inline-block;
+}
+
+.small {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.pageStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

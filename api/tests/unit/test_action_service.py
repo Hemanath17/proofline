@@ -116,7 +116,7 @@ def test_respond_with_stale_revision_raises_and_writes_nothing(
             payload={"body": "too late"},
         )
 
-    assert exc_info.value.current.revision == 2
+    assert exc_info.value.current["revision"] == 2
     assert _event_count(session) == events_before  # nothing new was written
 
 
@@ -272,8 +272,8 @@ def test_respond_to_a_resolved_note_raises_action_conflict_and_writes_nothing(
         )
 
     assert exc_info.value.detail == "cannot respond to a resolved note"
-    assert exc_info.value.current.status == "resolved"
-    assert exc_info.value.current.id == note_id
+    assert exc_info.value.current["status"] == "resolved"
+    assert exc_info.value.current["id"] == note_id
     assert _event_count(session) == events_before  # nothing new was written
 
 
@@ -331,6 +331,22 @@ def test_reveal_sensitive_value_with_blank_reason_is_rejected(session: Session) 
             "reveal_sensitive_value",
             entity_id="household:theo",
             payload={"field": "ssn", "reason": ""},
+        )
+    assert _event_count(session) == 0
+
+
+def test_reveal_sensitive_value_with_whitespace_only_reason_is_rejected(
+    session: Session,
+) -> None:
+    """A reason of "   " looks non-blank to a bare `value in (None, "")`
+    check but carries nothing a view-log entry should accept."""
+    with pytest.raises(ActionValidationError, match="reason"):
+        perform(
+            session,
+            REVIEWER,
+            "reveal_sensitive_value",
+            entity_id="household:theo",
+            payload={"field": "ssn", "reason": "   "},
         )
     assert _event_count(session) == 0
 

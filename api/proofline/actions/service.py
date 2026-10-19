@@ -16,7 +16,15 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from proofline.actions import check_runs, reveal, review_notes
+from proofline.actions import (
+    bulk,
+    cases,
+    check_runs,
+    disposition,
+    reveal,
+    review_notes,
+    sign_offs,
+)
 from proofline.actions.results import ActionResult
 from proofline.packet import Packet
 from proofline.security.actors import Actor
@@ -27,6 +35,23 @@ _HANDLERS = {
     "resolve_review_note": review_notes.resolve_review_note,
     "reveal_sensitive_value": reveal.reveal_sensitive_value,
     "record_check_run": check_runs.record_check_run,
+    "open_case_by_hand": cases.open_case_by_hand,
+    "sync_cases": cases.sync_cases,
+    "pick_up": cases.pick_up,
+    "ask_client": cases.ask_client,
+    "client_answered": cases.client_answered,
+    "submit_proposal": cases.submit_proposal,
+    "return": cases.return_proposal,
+    "approve": cases.approve,
+    "partner_approve": cases.partner_approve,
+    "partner_return": cases.partner_return,
+    "reopen": cases.reopen,
+    "reassign": cases.reassign,
+    "sign_off": sign_offs.sign_off,
+    "confirm_carryover": sign_offs.confirm_carryover,
+    "confirm_disposition": disposition.confirm_disposition,
+    "bulk_verify": bulk.bulk_verify,
+    "undo_bulk_verify": bulk.undo_bulk_verify,
 }
 
 

@@ -1,0 +1,58 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 34, 48, 0.4);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+  z-index: 100;
+}
+
+.menu {
+  background: var(--surface);
+  border-radius: 8px;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 8px 32px rgba(28, 34, 48, 0.25);
+  padding: var(--space-2);
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  min-height: 24px;
+}
+
+.results {
+  margin-top: var(--space-1);
+  display: grid;
+  gap: 2px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.result {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 24px;
+}
+
+.result:hover,
+.result:focus-visible {
+  background: var(--bg);
+}
+
+.hint {
+  padding: 8px 12px;
+  color: var(--ink-2);
+  font-size: 13px;
+}

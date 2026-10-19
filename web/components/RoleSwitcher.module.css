@@ -1,0 +1,22 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+}
+
+.caption {
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.select {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: var(--surface);
+  font-size: 13px;
+  min-height: 24px;
+  min-width: 220px;
+}

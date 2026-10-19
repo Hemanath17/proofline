@@ -1,0 +1,267 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: 72px;
+}
+
+.loading,
+.error {
+  color: var(--ink-2);
+}
+
+.error {
+  color: var(--blocking);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: var(--space-2);
+}
+
+.title {
+  font-size: 18px;
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.metaItem {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.stepper {
+  display: flex;
+  gap: var(--space-1);
+  list-style: none;
+  margin-top: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.step {
+  font-size: 12px;
+  color: var(--ink-2);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--bg);
+}
+
+.stepDone {
+  background: var(--verified-tint);
+  color: var(--verified);
+}
+
+.stepActive {
+  background: var(--info-tint);
+  color: var(--info);
+  font-weight: 600;
+}
+
+.changeBanner {
+  background: var(--changed-tint);
+  color: var(--changed);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  margin-top: var(--space-1);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sectionTitle {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+}
+
+.small {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.evidenceList {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+}
+
+.evidenceCard {
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.clientNote {
+  font-size: 12px;
+  color: var(--changed);
+}
+
+.revisionList {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin-bottom: var(--space-1);
+}
+
+.revisionItem {
+  font-size: 13px;
+  padding: 6px 8px;
+  background: var(--bg);
+  border-radius: 6px;
+}
+
+.proposalForm {
+  display: grid;
+  gap: var(--space-1);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: var(--space-2);
+  background: var(--surface);
+}
+
+.field {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.field input,
+.field select {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-height: 24px;
+}
+
+.disabledReason {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.primaryButton {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  min-height: 24px;
+  width: fit-content;
+}
+
+.primaryButton:disabled {
+  background: var(--rule);
+  color: var(--ink-2);
+  cursor: not-allowed;
+}
+
+.secondaryButton {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  min-height: 24px;
+}
+
+.activityList {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+}
+
+.activityRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 13px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.activityType {
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.activityMeta {
+  color: var(--ink-2);
+  text-align: right;
+}
+
+.activityEmpty {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.decisionBar {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--rule);
+  padding: var(--space-2);
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+.decisionButton {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  min-height: 24px;
+}
+
+.decisionButtonDisabled {
+  background: var(--bg);
+  color: var(--ink-2);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 8px 16px;
+  min-height: 24px;
+  cursor: not-allowed;
+}
+
+.disabledReasonInline {
+  font-size: 11px;
+}
+
+.nextHint {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.confirmBox {
+  display: grid;
+  gap: var(--space-1);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: var(--space-2);
+  background: var(--bg);
+}
+
+.confirmActions {
+  display: flex;
+  gap: var(--space-1);
+}

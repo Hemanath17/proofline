@@ -1,0 +1,16 @@
+.button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  font: inherit;
+  min-height: 24px;
+}
+
+.button:hover,
+.button:focus-visible {
+  text-decoration-color: var(--accent);
+}

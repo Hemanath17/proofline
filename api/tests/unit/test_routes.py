@@ -162,6 +162,63 @@ def test_responding_to_a_resolved_note_returns_409_with_current_state(
     assert body["current_state"]["status"] == "resolved"
 
 
+def test_stale_revision_returns_409_not_500_when_the_session_actually_closes(
+    closing_client: TestClient,
+) -> None:
+    """Regression test: `closing_client`'s session override closes the
+    session after each request, same as the real `get_session` -- the
+    `client` fixture's shared, never-closed session let a 409 handler
+    touch a detached ORM row without ever noticing. Reproduced over real
+    HTTP against Postgres as a bare 500 before `StaleRevision`/
+    `ActionConflict` were fixed to carry a plain dict captured while the
+    session was still open."""
+    note = closing_client.post(
+        "/api/review-notes",
+        json={"about_type": "document", "about_id": "D30", "body": "check this"},
+        headers=_headers(DANIEL),
+    ).json()
+    closing_client.post(
+        f"/api/review-notes/{note['id']}/respond",
+        json={"expected_revision": 1, "body": "first response"},
+        headers=_headers(PRIYA),
+    )
+
+    response = closing_client.post(
+        f"/api/review-notes/{note['id']}/respond",
+        json={"expected_revision": 1, "body": "too late"},
+        headers=_headers(MARCUS),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["current_state"]["revision"] == 2
+
+
+def test_responding_to_a_resolved_note_returns_409_not_500_when_the_session_actually_closes(
+    closing_client: TestClient,
+) -> None:
+    note = closing_client.post(
+        "/api/review-notes",
+        json={"about_type": "document", "about_id": "D30", "body": "check this"},
+        headers=_headers(DANIEL),
+    ).json()
+    closing_client.post(
+        f"/api/review-notes/{note['id']}/resolve",
+        json={"expected_revision": 1, "resolution": "fixed"},
+        headers=_headers(DANIEL),
+    )
+
+    response = closing_client.post(
+        f"/api/review-notes/{note['id']}/respond",
+        json={"expected_revision": 2, "body": "too late"},
+        headers=_headers(PRIYA),
+    )
+
+    assert response.status_code == 409
+    body = response.json()
+    assert body["detail"] == "cannot respond to a resolved note"
+    assert body["current_state"]["status"] == "resolved"
+
+
 def test_reveal_requires_clearance(client: TestClient) -> None:
     response = client.post(
         "/api/reveal",
@@ -346,3 +403,74 @@ def test_review_notes_list_filters_by_about(client: TestClient) -> None:
     notes = response.json()["review_notes"]
     assert len(notes) == 1
     assert notes[0]["about_id"] == "D30"
+
+
+def test_return_info_has_engine_version_and_tax_year(client: TestClient) -> None:
+    response = client.get("/api/return", headers=_headers(DANIEL))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["engine_version"]
+    assert body["tax_year"]
+
+
+def test_actors_list_includes_known_staff(client: TestClient) -> None:
+    response = client.get("/api/actors", headers=_headers(DANIEL))
+    assert response.status_code == 200
+    ids = {actor["id"] for actor in response.json()["actors"]}
+    assert {"st-01", "st-02", "st-03", "st-04", "ai-assistant"} <= ids
+
+
+def test_case_activity_lists_events_newest_first_with_actor_name(
+    client: TestClient,
+) -> None:
+    synced = client.post("/api/cases/sync", headers=_headers(DANIEL))
+    assert synced.status_code == 200
+    cases = synced.json()["cases"]
+    assert cases, "expected the real packet to produce at least one case"
+    case_id = cases[0]["case_id"]
+
+    response = client.get(f"/api/cases/{case_id}/activity", headers=_headers(DANIEL))
+    assert response.status_code == 200
+    events = response.json()["events"]
+    assert len(events) == 1
+    assert events[0]["event_type"] == "case_opened"
+    assert events[0]["actor_name"] == "System"
+    assert events[0]["actor_role"] == "system"
+
+
+def test_case_activity_unknown_case_returns_404(client: TestClient) -> None:
+    response = client.get(
+        "/api/cases/case-does-not-exist/activity", headers=_headers(DANIEL)
+    )
+    assert response.status_code == 404
+
+
+def test_trace_line_response_has_highlighted_sources(client: TestClient) -> None:
+    response = client.get("/api/trace/line/F1040.1a", headers=_headers(DANIEL))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["rule"]
+    assert "value" in body
+    document_ids = {source["document_id"] for source in body["sources"]}
+    assert document_ids == {"D08", "D09"}
+    for source in body["sources"]:
+        for page in source["pages"]:
+            assert page["highlights"], (
+                "expected at least one highlighted field per page"
+            )
+            for highlight in page["highlights"]:
+                assert highlight["tag"] >= 1
+
+
+def test_document_detail_returns_landed_in_and_disposition(client: TestClient) -> None:
+    response = client.get("/api/documents/D08", headers=_headers(DANIEL))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["used"] is True
+    assert "F1040.1a" in body["lines_using"]
+    assert body["disposition"] is None
+
+
+def test_document_detail_unknown_document_returns_404(client: TestClient) -> None:
+    response = client.get("/api/documents/D99", headers=_headers(DANIEL))
+    assert response.status_code == 404

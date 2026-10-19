@@ -1,0 +1,48 @@
+.list {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--surface);
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.row:hover {
+  border-color: var(--accent);
+}
+
+.name {
+  font-weight: 500;
+}
+
+.state {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.stateGreen {
+  background: var(--verified-tint);
+  color: var(--verified);
+}
+
+.stateAmber {
+  background: var(--changed-tint);
+  color: var(--changed);
+}
+
+.stateNeutral {
+  background: var(--bg);
+  color: var(--ink-2);
+}

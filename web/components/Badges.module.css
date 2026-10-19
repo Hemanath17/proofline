@@ -1,0 +1,52 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.provenance {
+  border: 1px solid var(--rule);
+  color: var(--ink-2);
+  background: var(--surface);
+}
+
+.info {
+  background: var(--info-tint);
+  color: var(--info);
+}
+
+.changed {
+  background: var(--changed-tint);
+  color: var(--changed);
+}
+
+.verified {
+  background: var(--verified-tint);
+  color: var(--verified);
+}
+
+.blocking {
+  background: var(--blocking-tint);
+  color: var(--blocking);
+}
+
+.neutral {
+  background: var(--rule);
+  color: var(--ink-2);
+}
+
+.taxEffect {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.amount {
+  font-weight: 500;
+}

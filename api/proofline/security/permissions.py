@@ -15,7 +15,28 @@ ActionName = Literal[
     "resolve_review_note",
     "reveal_sensitive_value",
     "record_check_run",
+    # Step 5: C1 case transitions
+    "open_case_by_hand",
+    "sync_cases",
+    "pick_up",
+    "ask_client",
+    "client_answered",
+    "submit_proposal",
+    "return",
+    "approve",
+    "partner_approve",
+    "partner_return",
+    "reopen",
+    "reassign",
+    # Step 7: C2 sign-off, C4 disposition, bulk verify
+    "sign_off",
+    "confirm_carryover",
+    "confirm_disposition",
+    "bulk_verify",
+    "undo_bulk_verify",
 ]
+
+_REVIEWER_ROLES = {"reviewer", "partner", "quality_reviewer"}
 
 
 class PermissionDenied(Exception):
@@ -26,12 +47,23 @@ class PermissionDenied(Exception):
         super().__init__(rule)
 
 
+_DETAIL_REVIEW_ROLES = {"preparer", "reviewer", "partner", "quality_reviewer"}
+
+
 def check_permission(
-    actor: Actor, action: ActionName, *, opened_by: str | None = None
+    actor: Actor,
+    action: ActionName,
+    *,
+    opened_by: str | None = None,
+    scope: str | None = None,
 ) -> None:
     """Raises `PermissionDenied` if `actor` may not take `action`.
     `opened_by` is the review note's current author -- only needed (and
-    only checked) for `resolve_review_note`.
+    only checked) for `resolve_review_note`. `scope` is the C2 area being
+    signed -- only needed (and only checked) for `sign_off`, since Tax
+    computation needs the partner while every other scope needs only a
+    reviewer (CONTRACTS.md C2: "Reviewers sign areas, and the partner
+    signs Tax computation and the final return").
     """
     if action == "add_review_note":
         if actor.role not in {"reviewer", "partner", "quality_reviewer"}:
@@ -62,5 +94,58 @@ def check_permission(
     elif action == "record_check_run":
         if not actor.is_staff:
             raise PermissionDenied("staff only")
+    elif action == "open_case_by_hand":
+        if not actor.is_staff:
+            raise PermissionDenied(
+                "staff only: a case opened by hand needs a staff member"
+            )
+    elif action == "sync_cases":
+        if not actor.is_staff:
+            raise PermissionDenied("staff only")
+    elif action in ("pick_up", "ask_client", "submit_proposal"):
+        if actor.role != "preparer":
+            raise PermissionDenied("preparer only")
+    elif action == "client_answered":
+        if actor.role not in {"client", "system"}:
+            raise PermissionDenied("only the client or the system may record an answer")
+    elif action in ("return", "approve"):
+        if actor.role not in _REVIEWER_ROLES:
+            raise PermissionDenied(
+                "only a reviewer, partner or quality reviewer may decide on a proposal"
+            )
+    elif action in ("partner_approve", "partner_return"):
+        if actor.role != "partner":
+            raise PermissionDenied("partner only")
+    elif action == "reopen":
+        if actor.role not in {"system", *_REVIEWER_ROLES}:
+            raise PermissionDenied("only the system or a reviewer may reopen a case")
+    elif action == "reassign":
+        if actor.role not in {"preparer", "reviewer", "firm_administrator"}:
+            raise PermissionDenied(
+                "only a preparer, reviewer or admin may reassign a case"
+            )
+    elif action == "sign_off":
+        if scope == "tax_computation":
+            if actor.role != "partner":
+                raise PermissionDenied("only the partner may sign tax computation")
+        elif actor.role not in _REVIEWER_ROLES:
+            raise PermissionDenied(
+                "only a reviewer, partner or quality reviewer may sign an area"
+            )
+    elif action == "confirm_carryover":
+        if actor.role not in _REVIEWER_ROLES:
+            raise PermissionDenied(
+                "only a reviewer, partner or quality reviewer may confirm a carry-over"
+            )
+    elif action == "confirm_disposition":
+        if actor.role != "preparer":
+            raise PermissionDenied(
+                "only the preparer may confirm a document disposition"
+            )
+    elif action in ("bulk_verify", "undo_bulk_verify"):
+        if actor.role not in _DETAIL_REVIEW_ROLES:
+            raise PermissionDenied(
+                "only a preparer, reviewer, partner or quality reviewer may verify detail"
+            )
     else:
         raise ValueError(f"unknown action {action!r}")
