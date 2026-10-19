@@ -183,6 +183,85 @@ def test_areas_endpoint_never_leaks(client: TestClient) -> None:
             _assert_no_leak(response.text, variants, where)
 
 
+def test_readiness_endpoint_never_leaks(client: TestClient) -> None:
+    variants = _all_variants()
+    for actor_id in UNCLEARED_ACTOR_IDS:
+        response = client.get("/api/readiness", headers={"X-Proofline-Actor": actor_id})
+        assert response.status_code == 200
+        _assert_no_leak(response.text, variants, f"GET /api/readiness as {actor_id}")
+
+
+def test_filing_endpoints_never_leak_pins(client: TestClient) -> None:
+    """The e-file signature PINs (CONTRACTS.md C5) must never reach an
+    uncleared actor, same as any other sensitive value -- proven here
+    with the real PINs actually recorded through `authorize_filing`,
+    not injected directly into the test."""
+    authorized = client.post(
+        "/api/filing/authorize",
+        json={"pins": {"taxpayer": "41207", "spouse": "88310"}},
+        headers={"X-Proofline-Actor": "cu-01"},
+    )
+    assert authorized.status_code == 200
+    variants = _all_variants()
+
+    for actor_id in UNCLEARED_ACTOR_IDS:
+        package_response = client.get(
+            "/api/filing/package", headers={"X-Proofline-Actor": actor_id}
+        )
+        assert package_response.status_code == 200
+        _assert_no_leak(
+            package_response.text, variants, f"GET /api/filing/package as {actor_id}"
+        )
+
+        status_response = client.get(
+            "/api/filing", headers={"X-Proofline-Actor": actor_id}
+        )
+        assert status_response.status_code == 200
+        _assert_no_leak(
+            status_response.text, variants, f"GET /api/filing as {actor_id}"
+        )
+        assert "41207" not in status_response.text
+        assert "88310" not in status_response.text
+
+        letter_response = client.get(
+            "/api/filing/letter-566", headers={"X-Proofline-Actor": actor_id}
+        )
+        assert letter_response.status_code == 200
+        _assert_no_leak(
+            letter_response.text, variants, f"GET /api/filing/letter-566 as {actor_id}"
+        )
+
+
+def test_filing_endpoints_never_leak_a_pin_that_is_not_in_the_packet_at_all(
+    client: TestClient,
+) -> None:
+    """Regression test (reviewer-agent finding): PIN masking must not
+    depend on the PIN happening to already appear somewhere in the
+    packet's own text (`collect_sensitive_values` has no awareness of a
+    PIN recorded only through `authorize_filing`, on its own) --
+    `routes/filing.py`'s own `_pin_sensitive_values` is what has to catch
+    this, not the packet-wide scan the rest of the leak scan relies on."""
+    authorized = client.post(
+        "/api/filing/authorize",
+        json={"pins": {"taxpayer": "90210", "spouse": "13579"}},
+        headers={"X-Proofline-Actor": "cu-01"},
+    )
+    assert authorized.status_code == 200
+    assert "90210" not in authorized.text  # cu-01 itself has no clearance
+    assert "13579" not in authorized.text
+
+    for actor_id in UNCLEARED_ACTOR_IDS:
+        status_response = client.get(
+            "/api/filing", headers={"X-Proofline-Actor": actor_id}
+        )
+        assert status_response.status_code == 200
+        assert "90210" not in status_response.text, f"leaked a new PIN as {actor_id}"
+        assert "13579" not in status_response.text, f"leaked a new PIN as {actor_id}"
+
+    cleared = client.get("/api/filing", headers={"X-Proofline-Actor": "st-02"})
+    assert "90210" in cleared.text  # Daniel is cleared: unmasked, and logged
+
+
 def test_reveal_sensitive_value_refused_for_uncleared_actors(
     client: TestClient,
 ) -> None:

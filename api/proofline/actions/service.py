@@ -21,6 +21,8 @@ from proofline.actions import (
     cases,
     check_runs,
     disposition,
+    filing,
+    readiness,
     reveal,
     review_notes,
     sign_offs,
@@ -52,6 +54,9 @@ _HANDLERS = {
     "confirm_disposition": disposition.confirm_disposition,
     "bulk_verify": bulk.bulk_verify,
     "undo_bulk_verify": bulk.undo_bulk_verify,
+    "confirm_readiness_item": readiness.confirm_readiness_item,
+    "authorize_filing": filing.authorize_filing,
+    "submit_filing": filing.submit_filing,
 }
 
 

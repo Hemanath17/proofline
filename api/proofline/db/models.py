@@ -452,6 +452,49 @@ class DocumentDisposition(Base):
         }
 
 
+class FiledRecord(Base):
+    """One jurisdiction's accepted filing (CONTRACTS.md C5, invariant I6).
+    Written once, only when `proofline.actions.filing.submit_filing` records
+    an accepted result -- never on a rejection, never updated afterward.
+    `amends_filed_record_id` is a nullable self-reference so a future
+    amendment package can point at the filed record it amends (Step 9+);
+    nothing writes it yet. The database trigger that refuses UPDATE/DELETE/
+    TRUNCATE is created in its own migration, the same way `events`' is --
+    see that migration's comment for why it's Postgres-only."""
+
+    __tablename__ = "filed_records"
+    __table_args__ = (
+        Index("ix_filed_records_jurisdiction", "jurisdiction", unique=True),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    jurisdiction: Mapped[str] = mapped_column(String, nullable=False)
+    package_reference: Mapped[str] = mapped_column(String, nullable=False)
+    amounts_fingerprint: Mapped[str] = mapped_column(String, nullable=False)
+    identity_fingerprint: Mapped[str] = mapped_column(String, nullable=False)
+    accepted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    submission_event_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("events.id"), nullable=False
+    )
+    amends_filed_record_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("filed_records.id"), nullable=True
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "jurisdiction": self.jurisdiction,
+            "package_reference": self.package_reference,
+            "amounts_fingerprint": self.amounts_fingerprint,
+            "identity_fingerprint": self.identity_fingerprint,
+            "accepted_at": _iso(self.accepted_at),
+            "submission_event_id": str(self.submission_event_id),
+            "amends_filed_record_id": self.amends_filed_record_id,
+        }
+
+
 class ClaimVerification(Base):
     """A human review-state marker on one claim (docs/UX.md "Verified ·
     DO"): who verified it, in what role, and when. Written only by

@@ -198,3 +198,50 @@ def test_bulk_verify_allowed_for_any_detail_reviewer(actor: Actor, action: str) 
 def test_bulk_verify_denied_for_everyone_else(actor: Actor, action: str) -> None:
     with pytest.raises(PermissionDenied):
         check_permission(actor, action)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "actor", [PREPARER, REVIEWER, PARTNER, MARCUS, FIRM_ADMIN, QUALITY_REVIEWER]
+)
+def test_confirm_readiness_item_allowed_for_any_staff(actor: Actor) -> None:
+    check_permission(actor, "confirm_readiness_item")
+
+
+@pytest.mark.parametrize("actor", [CLIENT, AI_ASSISTANT])
+def test_confirm_readiness_item_denied_for_client_and_ai_assistant(
+    actor: Actor,
+) -> None:
+    with pytest.raises(PermissionDenied) as exc_info:
+        check_permission(actor, "confirm_readiness_item")
+    assert exc_info.value.rule == "staff only"
+
+
+@pytest.mark.parametrize(
+    "actor",
+    [CLIENT, PREPARER, REVIEWER, PARTNER, MARCUS, FIRM_ADMIN, QUALITY_REVIEWER],
+)
+def test_authorize_filing_allowed_for_client_or_staff(actor: Actor) -> None:
+    check_permission(actor, "authorize_filing")
+
+
+def test_authorize_filing_denied_for_ai_assistant() -> None:
+    with pytest.raises(PermissionDenied) as exc_info:
+        check_permission(AI_ASSISTANT, "authorize_filing")
+    assert exc_info.value.rule == (
+        "only the client, or staff recording on the client's behalf, may "
+        "authorize filing"
+    )
+
+
+@pytest.mark.parametrize(
+    "actor", [PREPARER, REVIEWER, PARTNER, MARCUS, FIRM_ADMIN, QUALITY_REVIEWER]
+)
+def test_submit_filing_allowed_for_any_staff(actor: Actor) -> None:
+    check_permission(actor, "submit_filing")
+
+
+@pytest.mark.parametrize("actor", [CLIENT, AI_ASSISTANT])
+def test_submit_filing_denied_for_client_and_ai_assistant(actor: Actor) -> None:
+    with pytest.raises(PermissionDenied) as exc_info:
+        check_permission(actor, "submit_filing")
+    assert exc_info.value.rule == "staff only"

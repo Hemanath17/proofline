@@ -17,9 +17,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sqlalchemy.orm import Session
+
 from proofline.analysis.calculation import line_claim_identity
 from proofline.checks.models import Area
 from proofline.db.canonical import canonical_hash
+from proofline.db.repository import list_case_decisions, list_cases
 from proofline.packet import Line, Packet, ReturnVersion
 
 _FORM_SCOPE: dict[str, Area] = {
@@ -182,6 +185,28 @@ def compare_document_dependents(
     return ScopeComparison(
         unchanged=tuple(unchanged), changed=tuple(changed), replaced_documents=()
     )
+
+
+def resolved_decision_ids_in_scope(session: Session, scope: str) -> list[str]:
+    """CONTRACTS.md C2's "decisions" fingerprint: "resolved cases and
+    judgments in the scope, with the revision approved." A case already
+    carries its own scope (set at open time, same grouping C2 itself
+    uses), so every `approve`/`partner_approve` decision on a case in
+    this scope counts -- `return`/`partner_return` don't, since those
+    don't resolve anything. Lives here (not `actions/sign_offs.py`,
+    which originally defined it) since `analysis/readiness.py` needs the
+    exact same rule to detect a decision made since a scope's last
+    sign-off, and `analysis/` is what `actions/` depends on, not the
+    other way around; `actions.sign_offs` re-exports this name so
+    nothing that already imports it from there breaks."""
+    decision_ids: list[str] = []
+    for case in list_cases(session):
+        if case.scope != scope:
+            continue
+        for decision in list_case_decisions(session, case.case_id):
+            if decision.decision in ("approve", "partner_approve"):
+                decision_ids.append(decision.id)
+    return decision_ids
 
 
 @dataclass(frozen=True)

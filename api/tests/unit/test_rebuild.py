@@ -19,6 +19,7 @@ from proofline.db.models import (
     ClaimVerification,
     DocumentDisposition,
     Event,
+    FiledRecord,
     ReviewNote,
     SignOff,
 )
@@ -32,6 +33,7 @@ from sqlalchemy.orm import Session
 REVIEWER = Actor(id="st-02", name="Daniel", role="reviewer", clearance=True)
 PREPARER = Actor(id="st-01", name="Priya", role="preparer", clearance=True)
 PARTNER = Actor(id="st-03", name="Helen", role="partner", clearance=True)
+CLIENT = Actor(id="cu-01", name="Ngozi", role="client", clearance=False)
 
 
 @pytest.fixture
@@ -359,6 +361,73 @@ def test_rebuild_is_idempotent(session: Session) -> None:
     second = _review_note_snapshot(session)
 
     assert first == second
+
+
+def _filed_record_snapshot(session: Session) -> dict[str, dict]:
+    return {r.id: r.to_dict() for r in session.scalars(select(FiledRecord)).all()}
+
+
+def test_rebuild_matches_filing_authorization_and_submission(session: Session) -> None:
+    """Exercises the Step 8 rebuild handler: a rejected submission writes
+    no `FiledRecord` (I6: written once, only on acceptance), an accepted
+    one does -- then confirms a from-scratch replay matches the live
+    `filed_records` table exactly, using the id the event itself carries
+    (not one rebuild would have to invent)."""
+    packet = load_packet()
+    auth = perform(
+        session,
+        CLIENT,
+        "authorize_filing",
+        payload={"pins": {"taxpayer": "41207", "spouse": "88310"}},
+        packet=packet,
+    )
+    package_reference = auth.current_state["package_reference"]
+
+    perform(
+        session,
+        REVIEWER,
+        "submit_filing",
+        payload={
+            "jurisdiction": "federal",
+            "package_reference": package_reference,
+            "status": "rejected",
+            "codes": [{"code": "R0000-504-02", "message": "mismatch"}],
+        },
+        packet=packet,
+    )
+    perform(
+        session,
+        REVIEWER,
+        "submit_filing",
+        payload={
+            "jurisdiction": "federal",
+            "package_reference": package_reference,
+            "status": "accepted",
+            "codes": [],
+        },
+        packet=packet,
+    )
+    perform(
+        session,
+        REVIEWER,
+        "submit_filing",
+        payload={
+            "jurisdiction": "california",
+            "package_reference": package_reference,
+            "status": "accepted",
+            "codes": [],
+        },
+        packet=packet,
+    )
+    session.flush()
+
+    live_records = _filed_record_snapshot(session)
+    assert len(live_records) == 2
+
+    rebuild_current_state(session)
+    session.flush()
+
+    assert _filed_record_snapshot(session) == live_records
 
 
 def test_rebuild_skips_events_with_no_registered_handler(session: Session) -> None:

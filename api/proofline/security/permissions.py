@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from proofline.security.actors import Actor
+from proofline.security.actors import STAFF_ROLES, Actor
 
 ActionName = Literal[
     "add_review_note",
@@ -34,6 +34,10 @@ ActionName = Literal[
     "confirm_disposition",
     "bulk_verify",
     "undo_bulk_verify",
+    # Step 8: C5 readiness attestation, package authorization, submission
+    "confirm_readiness_item",
+    "authorize_filing",
+    "submit_filing",
 ]
 
 _REVIEWER_ROLES = {"reviewer", "partner", "quality_reviewer"}
@@ -147,5 +151,17 @@ def check_permission(
             raise PermissionDenied(
                 "only a preparer, reviewer, partner or quality reviewer may verify detail"
             )
+    elif action == "confirm_readiness_item":
+        if not actor.is_staff:
+            raise PermissionDenied("staff only")
+    elif action == "authorize_filing":
+        if actor.role not in {"client", *STAFF_ROLES}:
+            raise PermissionDenied(
+                "only the client, or staff recording on the client's behalf, may "
+                "authorize filing"
+            )
+    elif action == "submit_filing":
+        if not actor.is_staff:
+            raise PermissionDenied("staff only")
     else:
         raise ValueError(f"unknown action {action!r}")

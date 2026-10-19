@@ -24,6 +24,7 @@ from proofline.analysis.calculation import line_claim_identity
 from proofline.analysis.signoff import (
     changes_since_sign_off,
     compute_fingerprints,
+    resolved_decision_ids_in_scope,
     scope_lines,
 )
 from proofline.db.models import SignOff
@@ -32,7 +33,6 @@ from proofline.db.repository import (
     insert_event,
     insert_sign_off,
     list_adjustments,
-    list_case_decisions,
     list_case_proposals,
     list_cases,
     list_events_for_entity,
@@ -47,23 +47,6 @@ _REVIEWER_ROLES = frozenset({"reviewer", "quality_reviewer"})
 def _carryover_confirmed(session: Session, scope: str, old_document_id: str) -> bool:
     events = list_events_for_entity(session, "carryover", f"{scope}:{old_document_id}")
     return len(events) > 0
-
-
-def resolved_decision_ids_in_scope(session: Session, scope: str) -> list[str]:
-    """CONTRACTS.md C2's "decisions" fingerprint: "resolved cases and
-    judgments in the scope, with the revision approved." A case already
-    carries its own scope (set at open time, same grouping C2 itself
-    uses), so every `approve`/`partner_approve` decision on a case in
-    this scope counts -- `return`/`partner_return` don't, since those
-    don't resolve anything."""
-    decision_ids: list[str] = []
-    for case in list_cases(session):
-        if case.scope != scope:
-            continue
-        for decision in list_case_decisions(session, case.case_id):
-            if decision.decision in ("approve", "partner_approve"):
-                decision_ids.append(decision.id)
-    return decision_ids
 
 
 def signer_has_own_adjustment_in_scope(

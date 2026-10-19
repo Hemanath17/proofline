@@ -15,8 +15,10 @@ from proofline.routes import (
     cases,
     checks,
     documents,
+    filing,
     health,
     household,
+    readiness,
     return_info,
     reveal,
     review_notes,
@@ -40,6 +42,8 @@ app.include_router(actors.router, prefix="/api")
 app.include_router(cases.router, prefix="/api")
 app.include_router(return_info.router, prefix="/api")
 app.include_router(areas.router, prefix="/api")
+app.include_router(readiness.router, prefix="/api")
+app.include_router(filing.router, prefix="/api")
 
 install_logging_filter()
 

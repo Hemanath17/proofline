@@ -33,6 +33,7 @@ from proofline.db.models import (
     ClaimVerification,
     DocumentDisposition,
     Event,
+    FiledRecord,
     ReviewNote,
     SignOff,
 )
@@ -352,6 +353,31 @@ def _replay_bulk_claims_verification_undone(session: Session, event: Event) -> N
             session.delete(existing)
 
 
+@_register("filing_submitted")
+def _replay_filing_submitted(session: Session, event: Event) -> None:
+    """Only an accepted submission leaves a current-state row (I6: the
+    filed record is written once, on acceptance, never on rejection) --
+    `filed_record_id` is only present in the payload for that case, same
+    reason `case_opened` carries the full finding: the row's own id must
+    come from the event, not be invented again at replay time."""
+    payload = event.payload
+    filed_record_id = payload.get("filed_record_id")
+    if filed_record_id is None:
+        return
+    session.add(
+        FiledRecord(
+            id=filed_record_id,
+            jurisdiction=payload["jurisdiction"],
+            package_reference=payload["package_reference"],
+            amounts_fingerprint=payload["amounts_fingerprint"],
+            identity_fingerprint=payload["identity_fingerprint"],
+            accepted_at=event.occurred_at,
+            submission_event_id=event.id,
+            amends_filed_record_id=payload.get("amends_filed_record_id"),
+        )
+    )
+
+
 def rebuild_current_state(session: Session) -> None:
     """Clears every current-state table this module knows how to rebuild,
     then replays the full event history back into them, in `seq` order."""
@@ -364,6 +390,7 @@ def rebuild_current_state(session: Session) -> None:
     session.execute(delete(CaseDecision))
     session.execute(delete(CaseProposal))
     session.execute(delete(Case))
+    session.execute(delete(FiledRecord))
     session.flush()
     for event in session.scalars(select(Event).order_by(Event.seq)):
         handler = _HANDLERS.get((event.event_type, event.schema_version))

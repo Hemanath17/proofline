@@ -20,6 +20,7 @@ from proofline.db.models import (
     ClaimVerification,
     DocumentDisposition,
     Event,
+    FiledRecord,
     LastSeen,
     ReviewNote,
     SignOff,
@@ -103,6 +104,19 @@ def insert_event(
 
 def get_event(session: Session, event_id: uuid.UUID) -> Event | None:
     return session.get(Event, event_id)
+
+
+def list_events_by_type(session: Session, event_type: str) -> list[Event]:
+    """Every event of one type, in `seq` order, regardless of entity --
+    used by readiness/filing's own log-only actions (e.g. finding the most
+    recent `filing_authorized` event across every package reference it's
+    ever been written under)."""
+    statement = (
+        select(Event)
+        .where(Event.event_type == event_type)
+        .order_by(Event.seq, Event.created_at)
+    )
+    return list(session.scalars(statement))
 
 
 def list_events_for_entity(
@@ -398,3 +412,23 @@ def delete_claim_verification(session: Session, claim_key: str) -> None:
     if existing is not None:
         session.delete(existing)
         session.flush()
+
+
+def insert_filed_record(session: Session, filed_record: FiledRecord) -> FiledRecord:
+    session.add(filed_record)
+    session.flush()
+    return filed_record
+
+
+def list_filed_records(
+    session: Session, *, jurisdiction: str | None = None
+) -> list[FiledRecord]:
+    statement = select(FiledRecord).order_by(FiledRecord.accepted_at)
+    if jurisdiction is not None:
+        statement = statement.where(FiledRecord.jurisdiction == jurisdiction)
+    return list(session.scalars(statement))
+
+
+def get_latest_filed_record(session: Session, jurisdiction: str) -> FiledRecord | None:
+    records = list_filed_records(session, jurisdiction=jurisdiction)
+    return records[-1] if records else None
