@@ -38,4 +38,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_table("events")
+    # events is append-only forever (CONTRACTS.md Storage): dropping this
+    # table would delete every event ever written, which is exactly what
+    # immutability means never happens. Raise instead of running it.
+    raise RuntimeError("refusing to drop the events table")

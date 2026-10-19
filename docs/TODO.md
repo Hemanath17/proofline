@@ -63,7 +63,42 @@
 - [x] pytest x2, reviewer agent, `/deep-test`, new baseline report, `docs/DECISIONS.md` entries -- no commit
 
 ## Now: Step 4, events/current state/action service/roles/redaction
+- [x] Part A: migrations
+  - [x] `add_event_metadata_columns`: actor_id, entity_type, entity_id, revision, occurred_at on events (nullable), indexes on (entity_type, entity_id) and seq
+  - [x] `create_review_notes_and_check_runs_tables`
+  - [x] `events_immutability_triggers`: Postgres trigger refusing UPDATE/DELETE/TRUNCATE on events
+  - [x] Edit `8a1aa2459a26` downgrade() to raise instead of dropping the events table
+  - [x] `proofline/db/canonical.py`: to_canonical_json, canonical_hash, prepare_payload_for_storage; fix the Decimal-in-payload crash
+- [x] Part B: the action service
+  - [x] `proofline/actions/service.py`: perform(), one transaction, permission -> validate -> CAS -> event -> check-run snapshot
+  - [x] Generic `apply_revision_cas` helper (INSERT-at-1 or UPDATE...WHERE revision=:expected)
+  - [x] `proofline/actions/review_notes.py`: add_review_note, respond_review_note, resolve_review_note
+  - [x] `proofline/actions/reveal.py`: reveal_sensitive_value
+  - [x] `proofline/actions/check_runs.py`: record_check_run + is_decision snapshot hook
+  - [x] `proofline/db/rebuild.py`: replay events in seq order into fresh current state
+  - [x] Remove `routes/events.py` and its test
+- [x] Part C: actors and roles
+  - [x] `proofline/packet.py`: typed StaffMember, ClientUser, Firm
+  - [x] `proofline/security/actors.py`: Actor, load_actors (staff + client_users by name match + ai-assistant)
+  - [x] `proofline/security/permissions.py`: check_permission with named 403 rules
+  - [x] `proofline/security/dependencies.py`: get_current_actor (X-Proofline-Actor header, demo switcher, 401 if unknown/missing)
+- [x] Part D: redaction
+  - [x] `proofline/security/redact.py`: collect_sensitive_values, generate_variants, mask, redact_text, redact_json, redact_for_actor
+  - [x] Logging filter for sensitive values
+  - [x] Reveal-on-read wiring for document pages
+- [x] Read endpoints: household, documents, document page, trace line, trace document, checks, review-notes list
+- [x] Write endpoints: review-notes add/respond/resolve, reveal, check-runs
+- [x] Part E: tests
+  - [x] test_canonical.py, test_actors.py, test_permissions.py (I3), test_action_service.py (I1, I2), test_rebuild.py (I5), test_redact.py, test_leak_scan.py (I4)
+  - [x] api/tests/pg/: test_events_immutable.py (I6), test_migration_replay.py (I7), test_concurrency.py; `pg` marker in pytest.ini
+- [x] Part F: finish
+  - [x] pytest unit x2 (241 passed, 5 skipped both times -- no flaky tests), pg tests x2 against a throwaway local Postgres (5 passed), `alembic check` against that same local Postgres at head (no differences), reviewer agent
+  - [x] `/deep-test`: rule-to-test map, coverage (96% overall, every Step 4 file at 100% except `get_engine()`'s real-DB branch, deliberately not unit-tested), 8 real coverage gaps found and closed with new tests (no production code changed), rule-breaker grep scan clean, baseline unchanged (4/4 recall, 1.00 precision)
+  - [ ] `/simulate` role-abuse concurrency leak-scan failure migration; docs/SIMULATION_REPORT.md -- **skipped this session**: `TEST_DATABASE_URL` still isn't actually present in `.env.local` (confirmed with `dotenv_values()`, which lists only `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `GROQ_API_KEY`, the `LANGFUSE_*` keys, `SIM_BASE_URL` and `VERCEL_OIDC_TOKEN`), so the user chose to skip the pg tests and `/simulate` against the Neon test branch for now rather than keep debugging the save
+  - [x] Update docs/DECISIONS.md and docs/AI_USAGE.md
+  - **Note:** once `TEST_DATABASE_URL` actually lands in `.env.local`, re-run `pytest api -m pg -q` (should show tests actually running, not skipped) and `/simulate role-abuse concurrency leak-scan failure migration` against it, then write `docs/SIMULATION_REPORT.md`
 
 ## Questions still open
 - When does a corrected return need a new client signature? (Check IRS Publication 1345.)
 - Does the packet go into the public repo, or load from Vercel Blob?
+- Step 5 will need a way to read a review note's actual text back (body currently lives only in its `review_note_added`/`review_note_responded` events, never on the `review_notes` current-state row) -- flagged by the reviewer agent, not a Step 4 defect since there's no screen yet to show it on.

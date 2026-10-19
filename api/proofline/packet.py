@@ -166,6 +166,35 @@ class Client(BaseModel):
     call_notes: list[CallNote] = []
 
 
+class StaffMember(BaseModel):
+    id: str
+    name: str
+    role: str
+    credential: str | None = None
+    sensitive_data_clearance: bool = False
+    active_from: str | None = None
+    note: str | None = None
+
+
+class ClientUser(BaseModel):
+    id: str
+    name: str
+    role: str
+
+
+class Firm(BaseModel):
+    """`staff` and `client_users` are what Step 4's roles and redaction
+    need, so they're typed. Everything else (`firm_identity`,
+    `starter_standards`, `deadlines`, `budget_hours`, `assignment_at_start`)
+    stays loose, the same way `PriorYears` does above -- nothing outside
+    this module inspects those yet."""
+
+    model_config = ConfigDict(extra="allow")
+
+    staff: list[StaffMember] = []
+    client_users: list[ClientUser] = []
+
+
 class TimelineEvent(BaseModel):
     id: str
     at: str
@@ -367,7 +396,7 @@ class Packet(BaseModel):
     documents: list[Document]
     extracted_values: list[ExtractedValue]
     client: Client = Client()
-    firm: dict[str, Any] = {}
+    firm: Firm = Firm()
     prior_years: PriorYears = PriorYears()
     tax_agency_records: TaxAgencyRecords = TaxAgencyRecords()
     timeline: list[TimelineEvent] = []

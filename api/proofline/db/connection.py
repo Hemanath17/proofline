@@ -50,9 +50,19 @@ def get_engine() -> Engine:
 
 
 def get_session() -> Iterator[Session]:
+    """One session per request, committed only if the route and everything
+    it called (in particular `proofline.actions.service.perform`) returned
+    without raising. A permission failure, a stale revision or any other
+    exception rolls the whole request's writes back together -- nothing
+    partial is ever committed (CONTRACTS.md Storage, acceptance test I1).
+    """
     session = Session(get_engine())
     try:
         yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()
 
