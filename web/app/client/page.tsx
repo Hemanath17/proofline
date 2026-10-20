@@ -15,6 +15,16 @@ function formatValue(value: unknown): string {
   return String(value);
 }
 
+// A positive balance is owed; a negative one is an overpayment coming
+// back -- the sign is a real accounting convention here, not a guess at
+// this client's own numbers, so turning it into plain words is safe.
+function formatBalance(value: unknown): string {
+  const amount = Number(value);
+  if (Number.isNaN(amount)) return formatValue(value);
+  const whole = Math.round(Math.abs(amount)).toLocaleString("en-US");
+  return amount < 0 ? `Refund of $${whole}` : `You owe $${whole}`;
+}
+
 function SummaryTab() {
   const [data, setData] = useState<ClientSummary | null>(null);
 
@@ -28,12 +38,12 @@ function SummaryTab() {
     <section className={styles.section}>
       <div className={styles.card}>
         <span className={styles.sectionTitle}>Federal</span>
-        <span className="mono">{formatValue(data.federal.balance_due)}</span>
+        <span className="mono">{formatBalance(data.federal.balance_due)}</span>
         <span className={styles.pill}>{data.federal.label}</span>
       </div>
       <div className={styles.card}>
         <span className={styles.sectionTitle}>California</span>
-        <span className="mono">{formatValue(data.california.balance_due)}</span>
+        <span className="mono">{formatBalance(data.california.balance_due)}</span>
         <span className={styles.pill}>{data.california.label}</span>
       </div>
     </section>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch, apiPost, ApiError } from "@/lib/api-client";
 import { useCurrentActor } from "@/lib/session";
-import { ProvenanceBadge } from "@/components/Badges";
+import { ProvenanceBadge, ReviewStateMarker } from "@/components/Badges";
 import { TraceableNumber } from "@/components/TraceableNumber";
 import type { AreaDetail as AreaDetailData, AreaTimeBudget, TimeReport } from "@/lib/types";
 import styles from "./Shared.module.css";
@@ -86,7 +86,7 @@ function SignOffHeader({
       <div className={styles.metaRow}>
         <span
           className={`${styles.statePill} ${
-            data.sign_off && !changePending ? styles.stateGreen : styles.stateAmber
+            !data.sign_off ? styles.stateNeutral : changePending ? styles.stateAmber : styles.stateGreen
           }`}
         >
           {stateLabel}
@@ -199,8 +199,8 @@ function TieOutsSection({ data }: { data: AreaDetailData }) {
         <thead>
           <tr>
             <th>Line</th>
-            <th>Engine value</th>
-            <th>Workpaper value</th>
+            <th className={styles.num}>Engine value</th>
+            <th className={styles.num}>Workpaper value</th>
             <th>Agrees</th>
           </tr>
         </thead>
@@ -208,8 +208,8 @@ function TieOutsSection({ data }: { data: AreaDetailData }) {
           {data.tie_outs.map((tieOut) => (
             <tr key={tieOut.line_key}>
               <td>{tieOut.label ?? tieOut.line_key}</td>
-              <td className="mono">{formatValue(tieOut.engine_value)}</td>
-              <td className="mono">{formatValue(tieOut.workpaper_value)}</td>
+              <td className={`mono ${styles.num}`}>{formatValue(tieOut.engine_value)}</td>
+              <td className={`mono ${styles.num}`}>{formatValue(tieOut.workpaper_value)}</td>
               <td className={tieOut.ok ? styles.ok : styles.breaks}>
                 {tieOut.ok ? "✓" : `✗ (${tieOut.difference})`}
               </td>
@@ -288,6 +288,128 @@ function TimeBudgetSection({ scope }: { scope: string }) {
   );
 }
 
+type DetailRow = AreaDetailData["detail"][number];
+
+// docs/UX.md S3: "Large detail (e.g., Form 8949's 302 lines): grouped by
+// issuer and box, with a summary row per group ... expand to see lots."
+// The area-detail API gives no explicit group field, but a line key's
+// engine-assigned family (everything before its last dot segment, e.g.
+// "F8949.D" for "F8949.D.M9") is exactly that grouping, and it's a
+// structural property of the engine's own line-numbering, not a
+// client-specific value. A family only becomes a collapsible group once
+// it's actually large enough to need one; a handful of one-off lines
+// (most scopes) still render as the plain flat table below.
+const GROUP_THRESHOLD = 4;
+
+function lineKeyFamily(lineKey: string): string {
+  const parts = lineKey.split(".");
+  return parts.length > 1 ? parts.slice(0, -1).join(".") : lineKey;
+}
+
+function groupDetailRows(rows: DetailRow[]): {
+  groups: Array<{ key: string; rows: DetailRow[] }>;
+  ungrouped: DetailRow[];
+} {
+  const byFamily = new Map<string, DetailRow[]>();
+  for (const row of rows) {
+    const key = lineKeyFamily(row.line_key);
+    const list = byFamily.get(key) ?? [];
+    list.push(row);
+    byFamily.set(key, list);
+  }
+  const groups: Array<{ key: string; rows: DetailRow[] }> = [];
+  const ungrouped: DetailRow[] = [];
+  for (const [key, list] of byFamily) {
+    if (list.length >= GROUP_THRESHOLD) groups.push({ key, rows: list });
+    else ungrouped.push(...list);
+  }
+  return { groups, ungrouped };
+}
+
+function DetailTableRow({
+  row,
+  checked,
+  onToggle,
+}: {
+  row: DetailRow;
+  checked: boolean;
+  onToggle: (claimKey: string) => void;
+}) {
+  return (
+    <tr>
+      <td>
+        {row.claim_key && !row.verified && (
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={() => onToggle(row.claim_key as string)}
+          />
+        )}
+      </td>
+      <td>{row.label ?? row.line_key}</td>
+      <td className={`mono ${styles.num}`}>
+        <TraceableNumber lineKey={row.line_key}>{formatValue(row.value)}</TraceableNumber>
+      </td>
+      <td>
+        <ProvenanceBadge kind={row.provenance_label} />
+      </td>
+      <td>
+        <ReviewStateMarker state={row.verified ? "verified" : "unverified"} verifiedBy={row.verified_by} />
+      </td>
+    </tr>
+  );
+}
+
+function DetailGroup({
+  groupKey,
+  rows,
+  selected,
+  onToggle,
+}: {
+  groupKey: string;
+  rows: DetailRow[];
+  selected: Set<string>;
+  onToggle: (claimKey: string) => void;
+}) {
+  const verifiedCount = rows.filter((row) => row.verified).length;
+  const total = rows.reduce((sum, row) => (typeof row.value === "number" ? sum + row.value : sum), 0);
+  return (
+    <details className={styles.detailGroup}>
+      <summary className={styles.groupSummary}>
+        <span className={`mono ${styles.groupLabel}`}>{groupKey}</span>
+        <span className={styles.groupMeta}>{rows.length} lines</span>
+        <span className={`mono ${styles.groupMeta}`}>{formatValue(total)} total</span>
+        <span className={styles.groupMeta}>
+          {verifiedCount} / {rows.length} verified
+        </span>
+      </summary>
+      <div className={styles.groupBody}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th />
+              <th>Line</th>
+              <th className={styles.num}>Value</th>
+              <th>Provenance</th>
+              <th>Verified</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <DetailTableRow
+                key={row.line_key}
+                row={row}
+                checked={row.claim_key ? selected.has(row.claim_key) : false}
+                onToggle={onToggle}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
 function DetailSection({
   scope,
   data,
@@ -306,6 +428,8 @@ function DetailSection({
     () => data.detail.filter((row) => row.claim_key && !row.verified),
     [data.detail],
   );
+
+  const { groups, ungrouped } = useMemo(() => groupDetailRows(data.detail), [data.detail]);
 
   function toggle(claimKey: string) {
     setSelected((prev) => {
@@ -366,46 +490,38 @@ function DetailSection({
         )}
       </div>
       {error && <p className={styles.error}>{error}</p>}
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th />
-            <th>Line</th>
-            <th>Value</th>
-            <th>Provenance</th>
-            <th>Verified</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.detail.map((row) => (
-            <tr key={row.line_key}>
-              <td>
-                {row.claim_key && !row.verified && (
-                  <input
-                    type="checkbox"
-                    checked={selected.has(row.claim_key)}
-                    onChange={() => toggle(row.claim_key as string)}
-                  />
-                )}
-              </td>
-              <td>{row.label ?? row.line_key}</td>
-              <td className="mono">
-                <TraceableNumber lineKey={row.line_key}>{formatValue(row.value)}</TraceableNumber>
-              </td>
-              <td>
-                <ProvenanceBadge kind={row.provenance_label} />
-              </td>
-              <td>
-                {row.verified ? (
-                  <span className={styles.ok}>Verified · {row.verified_by}</span>
-                ) : (
-                  <span className={styles.small}>Unverified</span>
-                )}
-              </td>
+      {groups.map((group) => (
+        <DetailGroup
+          key={group.key}
+          groupKey={group.key}
+          rows={group.rows}
+          selected={selected}
+          onToggle={toggle}
+        />
+      ))}
+      {ungrouped.length > 0 && (
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th />
+              <th>Line</th>
+              <th className={styles.num}>Value</th>
+              <th>Provenance</th>
+              <th>Verified</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {ungrouped.map((row) => (
+              <DetailTableRow
+                key={row.line_key}
+                row={row}
+                checked={row.claim_key ? selected.has(row.claim_key) : false}
+                onToggle={toggle}
+              />
+            ))}
+          </tbody>
+        </table>
+      )}
       {verifiable.length === 0 && data.detail.length > 0 && (
         <p className={styles.small}>Everything with a claim identity is verified.</p>
       )}

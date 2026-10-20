@@ -46,6 +46,11 @@
   color: var(--changed);
 }
 
+.stateNeutral {
+  background: var(--bg);
+  color: var(--ink-2);
+}
+
 .signOffRow {
   display: flex;
   align-items: flex-start;
@@ -119,6 +124,55 @@
   text-align: left;
   padding: 6px 8px;
   border-bottom: 1px solid var(--rule);
+}
+
+/* docs/UX.md Visual system: "Amounts are right-aligned in whole dollars." */
+.table th.num,
+.table td.num {
+  text-align: right;
+}
+
+.groupSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 8px 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.groupSummary::-webkit-details-marker {
+  display: none;
+}
+
+.groupSummary::before {
+  content: "▸";
+  color: var(--ink-2);
+  font-size: 11px;
+}
+
+details[open] > .groupSummary::before {
+  content: "▾";
+}
+
+.groupLabel {
+  font-weight: 500;
+  flex: 1;
+}
+
+.groupMeta {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.groupBody {
+  padding-left: var(--space-2);
+}
+
+.detailGroup {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  margin-bottom: 4px;
 }
 
 .ok {

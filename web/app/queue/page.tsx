@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch, apiPost, ApiError } from "@/lib/api-client";
 import { CaseStatusPill, severityLabel, TaxEffectDisplay } from "@/components/Badges";
@@ -25,6 +25,14 @@ function age(createdAt: string): string {
 }
 
 export default function QueuePage() {
+  return (
+    <Suspense fallback={null}>
+      <QueueView />
+    </Suspense>
+  );
+}
+
+function QueueView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tab = searchParams.get("tab") ?? "needs_me";
@@ -177,22 +185,26 @@ export default function QueuePage() {
                         select(row.case_id);
                       }}
                     >
-                      {row.changed_since_last_seen && (
-                        <span className={styles.unreadDot} aria-label="Changed" />
-                      )}
+                      <span className={styles.unreadSlot}>
+                        {row.changed_since_last_seen && (
+                          <span className={styles.unreadDot} aria-label="Changed" />
+                        )}
+                      </span>
                       <div className={styles.rowMain}>
                         <span className={styles.rowTitle}>{row.title}</span>
                         <span className={styles.rowWhy}>{row.why_it_here}</span>
                       </div>
                       <span className={styles.rowArea}>{row.scope}</span>
-                      {row.tax_effect && (
-                        <TaxEffectDisplay
-                          federal={row.tax_effect.federal}
-                          california={row.tax_effect.california}
-                          kind={row.tax_effect.kind}
-                          direction={row.tax_effect.direction}
-                        />
-                      )}
+                      <span className={styles.taxEffectSlot}>
+                        {row.tax_effect && (
+                          <TaxEffectDisplay
+                            federal={row.tax_effect.federal}
+                            california={row.tax_effect.california}
+                            kind={row.tax_effect.kind}
+                            direction={row.tax_effect.direction}
+                          />
+                        )}
+                      </span>
                       <CaseStatusPill status={row.status} />
                       <span className={styles.rowAssignee}>{row.assignee_id ?? "unassigned"}</span>
                       <span className={styles.rowAge}>{age(row.created_at)}</span>

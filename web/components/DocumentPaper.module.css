@@ -34,6 +34,21 @@
   z-index: 1;
 }
 
+.masked {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0 3px;
+  color: var(--ink-2);
+}
+
+.lockIcon {
+  flex-shrink: 0;
+}
+
 .highlight {
   position: absolute;
   background: rgba(15, 94, 99, 0.18);

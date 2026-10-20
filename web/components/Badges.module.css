@@ -41,6 +41,10 @@
   color: var(--ink-2);
 }
 
+.reviewMarker {
+  font-weight: 500;
+}
+
 .taxEffect {
   display: inline-flex;
   align-items: center;

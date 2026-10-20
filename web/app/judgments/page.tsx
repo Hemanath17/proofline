@@ -6,6 +6,22 @@ import { useCurrentActor } from "@/lib/session";
 import type { DueDiligenceChecklist, Judgment, OutsideFilingItem } from "@/lib/types";
 import styles from "@/components/Shared.module.css";
 
+const DECISION_LABEL: Record<string, string> = {
+  filed: "Filed",
+  not_required: "Not required",
+  client_responsible: "Client's responsibility",
+  open: "Still open",
+};
+
+// Some outside-filing notes carry the prior preparer's raw structured note
+// verbatim (a JSON-shaped string, not this app's own data) -- rendering
+// that in mono rather than prose signals "this is raw source text", not a
+// rendering mistake.
+function looksLikeJson(text: string): boolean {
+  const trimmed = text.trim();
+  return trimmed.startsWith("{") && trimmed.endsWith("}");
+}
+
 function JudgmentsSection() {
   const { actorId } = useCurrentActor();
   const [judgments, setJudgments] = useState<Judgment[]>([]);
@@ -155,10 +171,10 @@ function OutsideFilingsSection() {
       {items.map((item) => (
         <div key={item.item} className={styles.card}>
           <span>{item.label}</span>
-          <span className={styles.small}>{item.note}</span>
+          <span className={`${styles.small} ${looksLikeJson(item.note) ? "mono" : ""}`}>{item.note}</span>
           {item.decided ? (
             <span className={styles.ok}>
-              {item.decision} · {item.decided_by}
+              {DECISION_LABEL[item.decision ?? ""] ?? item.decision} · {item.decided_by}
             </span>
           ) : (
             <div className={styles.formRow}>
@@ -170,7 +186,7 @@ function OutsideFilingsSection() {
                   disabled={working === item.item}
                   onClick={() => confirm(item.item, decision)}
                 >
-                  {decision}
+                  {DECISION_LABEL[decision]}
                 </button>
               ))}
             </div>

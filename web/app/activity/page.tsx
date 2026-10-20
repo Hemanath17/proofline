@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import type { NotificationsResponse } from "@/lib/types";
+import { caseStatusLabel } from "@/components/Badges";
 import styles from "@/components/Shared.module.css";
 
 /** B14, B26: the notifications feed -- needs-me cases, what changed since
@@ -43,7 +44,7 @@ export default function ActivityPage() {
               <Link key={item.entity_id} href={`/cases/${item.entity_id}`} className={styles.card}>
                 <span>{item.label}</span>
                 <span className={styles.small}>
-                  {item.scope} · {item.status}
+                  {item.scope} · {item.status ? caseStatusLabel(item.status) : ""}
                 </span>
               </Link>
             ))}

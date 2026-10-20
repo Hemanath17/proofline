@@ -9,7 +9,10 @@ const VERSIONS = ["v1", "v2", "v3", "workpaper"] as const;
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return "—";
-  return String(value);
+  const n = typeof value === "number" ? value : Number(value);
+  if (typeof value !== "string" && typeof value !== "number") return String(value);
+  if (Number.isNaN(n)) return String(value);
+  return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
 function VersionDiffTab() {
@@ -69,8 +72,8 @@ function VersionDiffTab() {
             <tr>
               <th>Line</th>
               <th>Rule</th>
-              <th>Old</th>
-              <th>New</th>
+              <th className={styles.num}>Old</th>
+              <th className={styles.num}>New</th>
               <th>Source</th>
             </tr>
           </thead>
@@ -79,8 +82,8 @@ function VersionDiffTab() {
               <tr key={line.line_key}>
                 <td>{line.label ?? line.line_key}</td>
                 <td className="mono">{line.rule ?? "—"}</td>
-                <td className="mono">{formatValue(line.old_value)}</td>
-                <td className="mono">{formatValue(line.new_value)}</td>
+                <td className={`mono ${styles.num}`}>{formatValue(line.old_value)}</td>
+                <td className={`mono ${styles.num}`}>{formatValue(line.new_value)}</td>
                 <td>{line.source}</td>
               </tr>
             ))}
@@ -121,16 +124,16 @@ function WhatIfsTab() {
             <thead>
               <tr>
                 <th>Line</th>
-                <th>What-if value</th>
-                <th>Current workpaper value</th>
+                <th className={styles.num}>What-if value</th>
+                <th className={styles.num}>Current workpaper value</th>
               </tr>
             </thead>
             <tbody>
               {alternative.changed_lines.map((line) => (
                 <tr key={line.line_key}>
                   <td className="mono">{line.line_key}</td>
-                  <td className="mono">{formatValue(line.what_if_new)}</td>
-                  <td className="mono">{formatValue(line.current_workpaper_value)}</td>
+                  <td className={`mono ${styles.num}`}>{formatValue(line.what_if_new)}</td>
+                  <td className={`mono ${styles.num}`}>{formatValue(line.current_workpaper_value)}</td>
                 </tr>
               ))}
             </tbody>

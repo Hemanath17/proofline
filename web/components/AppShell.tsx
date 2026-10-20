@@ -71,7 +71,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {!collapsed && (
             <div className={styles.returnLabel}>
               <span className={styles.returnName}>
-                {info ? info.household_names.join(" & ") : "Loading..."}
+                {info ? info.household_names.join(" & ") : isClient ? "Your return" : "Loading..."}
               </span>
               <span className={styles.returnYear}>{info ? `${info.tax_year} return` : ""}</span>
             </div>

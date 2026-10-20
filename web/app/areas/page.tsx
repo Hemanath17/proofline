@@ -47,11 +47,11 @@ export default function AreasPage() {
               data?.changes_since_sign_off?.scope_changed ||
               data?.changes_since_sign_off?.decision_changed ||
               data?.changes_since_sign_off?.documents.some((d) => !d.confirmed));
-          const stateClass = !data
+          const stateClass = !data || !data.sign_off
             ? styles.stateNeutral
-            : data.sign_off && !changePending
-              ? styles.stateGreen
-              : styles.stateAmber;
+            : changePending
+              ? styles.stateAmber
+              : styles.stateGreen;
           const stateLabel = !data
             ? "Loading…"
             : data.sign_off

@@ -2,8 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
   async rewrites() {
     // Development only: `vercel dev` and production both route /api/*
     // to the FastAPI service via the root vercel.json, which does not

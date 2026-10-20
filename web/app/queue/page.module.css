@@ -141,11 +141,22 @@
   background: var(--info-tint);
 }
 
+.unreadSlot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .unreadDot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--accent);
+}
+
+.taxEffectSlot {
+  display: flex;
+  align-items: center;
 }
 
 .rowMain {

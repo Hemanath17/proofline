@@ -7,9 +7,35 @@ import styles from "./Shared.module.css";
  * renderer that shows an array of objects as a table, an object as a
  * labelled list, and anything else as plain text -- "detail tables are
  * read-only views", not a spreadsheet (docs/UX.md principle 6). */
+// Record values come straight from the API as JSON numbers in some views
+// and as Decimal-precision strings in others (e.g. a percent_change like
+// "36.11981619979620479495510738") -- round here, for display only,
+// rather than showing 20+ raw decimal digits.
+function formatNumber(value: number): string {
+  if (Number.isInteger(value)) return value.toLocaleString("en-US");
+  return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
+
+// Same rule the rest of the app's formatValue helpers already use for a
+// line amount (AreaDetail, the Return page): a numeric-looking value gets
+// comma-formatted. shortcut: a bare numeric code (zip, account number)
+// would get comma-formatted too; none of R01-R16's current fields are
+// that shape.
+const NUMERIC_STRING = /^-?\d+(\.\d+)?$/;
+
+function isFormattableNumericString(value: string): boolean {
+  return NUMERIC_STRING.test(value);
+}
+
 export function JsonValue({ value }: { value: unknown }): React.ReactElement {
   if (value === null || value === undefined) {
     return <span className="mono">—</span>;
+  }
+  if (typeof value === "number") {
+    return <span className="mono">{formatNumber(value)}</span>;
+  }
+  if (typeof value === "string" && isFormattableNumericString(value)) {
+    return <span className="mono">{formatNumber(Number(value))}</span>;
   }
   if (Array.isArray(value)) {
     if (value.length === 0) return <span className={styles.emptyState}>none</span>;
@@ -28,11 +54,16 @@ export function JsonValue({ value }: { value: unknown }): React.ReactElement {
           <tbody>
             {value.map((row, index) => (
               <tr key={index}>
-                {columns.map((column) => (
-                  <td key={column} className="mono">
-                    <JsonValue value={(row as Record<string, unknown>)[column]} />
-                  </td>
-                ))}
+                {columns.map((column) => {
+                  const cell = (row as Record<string, unknown>)[column];
+                  const numeric =
+                    typeof cell === "number" || (typeof cell === "string" && isFormattableNumericString(cell));
+                  return (
+                    <td key={column} className={`mono ${numeric ? styles.num : ""}`}>
+                      <JsonValue value={cell} />
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
