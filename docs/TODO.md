@@ -205,6 +205,99 @@
 - "Diagnostics resolved" (one of C5's firm 12 steps) isn't a readiness item -- the packet's `ReturnVersion.diagnostics` field isn't wired into cases or anywhere else yet, and the Step 8 prompt's own item breakdown didn't include it either. See DECISIONS.md.
 - `build_package`'s adjustment-awareness (and `letter_566_pack`'s) covers a directly-adjusted `return_total` line itself, not propagation through a dependent R-SUM/R-CARRY chain (e.g. total income summing over an adjusted SchC.1) -- `workpaper_value`'s own recursion still isn't `return_total`-aware at every level, only `line_claim_identity`'s F8949 case propagates that way today. See docs/DECISIONS.md.
 
+## Now: Step 9, everything else the brief asks for
+
+Design call made up front (see docs/DECISIONS.md for the full reasoning): nothing
+in this step needs a new table or a migration. Time entries, judgments/elections
+and outside-filing decisions are all append-only facts nobody edits or CASes
+against -- modeled as log-only events (`confirm_carryover`/`confirm_readiness_item`'s
+own pattern), read back by replaying each entity's own events, exactly like a
+readiness attestation item already does. Everything else (notifications,
+versions diff, what-ifs, search, the record views) is a read computed from
+data that already exists.
+
+### Part A: packet modeling (api/proofline/packet.py)
+- [x] Typed `firm.assignment_at_start`, `firm.deadlines`, `firm.budget_hours`, and a new `firm.starter_standards` (with `variance_review`), per packet-explorer's confirmed shapes
+- [x] Typed `Asset.disposition` (was silently dropped before -- no other prior_years/tax_agency_records sub-shape needed typing; R07/R08/R10/R15/R16 read them generically as loose dicts)
+
+### Part B: live updates, notifications, "since you last looked" (B14, B26)
+- [x] `proofline/analysis/changes.py`: extracted `cases_needing_actor` from `routes/cases.py`'s private `_needs_me`; `routes/cases.py` now calls the moved function
+- [x] `proofline/analysis/notifications.py`: `notifications_report(session, packet, actor)`
+- [x] `routes/notifications.py`: `GET /api/notifications`, staff + AI assistant only
+- [x] `web/app/activity/page.tsx`: real notifications feed (needs-me, changed, deadlines)
+
+### Part C: time against budget (B37)
+- [x] `proofline/actions/time_tracking.py`: `log_time`, staff-only
+- [x] `proofline/analysis/time_tracking.py`: `AREA_TO_BUDGET_KEY`, `hours_logged_by_area`, `time_budget_report` -- reads `firm.budget_hours` directly, no hardcoded figure
+- [x] `routes/time.py`: `POST`/`GET /api/time`
+- [x] `AreaDetail.tsx`: a "Time against budget" section per area with a log-time form
+
+### Part D: search (B38)
+- [x] `proofline/analysis/search.py`: `search(packet, session, query)` over cases/lines/documents/notes; document snippets always redacted, even for a cleared actor (decision logged)
+- [x] `routes/search.py`: `GET /api/search?q=...`, staff + AI assistant only
+- [x] `web/components/CommandMenu.tsx`: wired to the real endpoint, debounced, grouped results routed to the right screen
+
+### Part E: comparing versions (B15)
+- [x] `proofline/analysis/version_diff.py`: `diff_versions(packet, session, from_version, to_version)` over any pair of v1/v2/v3/`workpaper`
+- [x] `routes/versions.py`: `GET /api/versions/diff?from=...&to=...&only_changed=...`
+- [x] `web/app/return/page.tsx`: version-diff tab, filterable to only changed
+
+### Part F: what-ifs (B16)
+- [x] `routes/versions.py`: `GET /api/what-ifs` -- the packet's five named alternatives alongside the current workpaper value
+- [x] `web/app/return/page.tsx`: what-ifs tab, side-by-side with current values
+
+### Part G: judgments and elections (B19) + Form 8867
+- [x] `proofline/actions/judgments.py`: `record_judgment_election`, staff-only; validates `what_if_id` against the packet when `is_election`
+- [x] `proofline/analysis/judgments.py`: `list_judgments(session)`
+- [x] `proofline/analysis/due_diligence.py`: `due_diligence_checklist(packet)` -- the packet has no itemized checklist at all (confirmed by packet-explorer), so this surfaces the firm's own due-diligence rule text and the engine's `F8867.status` line, generically matched; "done" is still the existing `due_diligence_done` attestation
+- [x] `routes/judgments.py`: `POST`/`GET /api/judgments`, `GET /api/due-diligence`
+- [x] `web/app/judgments/page.tsx`: judgments list + form, due-diligence checklist, outside filings (folded in, see Part H)
+
+### Part H: outside filings (last C5 condition, B20)
+- [x] `proofline/analysis/outside_filings.py`: `outside_filing_items(packet)` found generically (fixed diagnostic codes, text patterns in the prior preparer's open items and `household.related_returns`) -- confirmed against the real packet to find exactly the four named items (fbar, contractor_1099_nec, form_3520_2023, oregon_composite); `outside_filings_report`
+- [x] `proofline/actions/outside_filings.py`: `confirm_outside_filing`, staff-only
+- [x] `proofline/analysis/readiness.py`: added `_outside_filings_decided` to `readiness_report`
+- [x] `routes/outside_filings.py`: `GET /api/outside-filings`, `POST /api/outside-filings/{item}/confirm`
+- [x] `web/app/judgments/page.tsx`: outside-filings section with owner + status (folded in rather than a separate route)
+
+### Part I: the client workspace (S5, B27, B31, W4)
+- [x] `security/dependencies.py`: `require_non_client`, `require_client`
+- [x] Retrofitted `require_non_client` onto every pre-existing staff-surface GET route: `areas`, `cases` (reads), `documents`, `trace`, `readiness`, `review-notes`, `checks`, `filing` (package/status/letter-566 -- not `authorize_filing`)
+- [x] `proofline/analysis/client_workspace.py`: `client_summary`, `client_questions`, `client_documents`, `client_changes`, `client_package_summary`
+- [x] `routes/client.py`: `GET /api/client/summary|questions|documents|changes|package`, all `require_client`; signing is the existing `POST /api/filing/authorize`
+- [x] `web/app/client/page.tsx`: summary/questions/documents/sign tabs; `AppShell`'s left rail swaps to a client-only nav for the `client` role
+- [x] W4 as a test (see Tests below)
+
+### Part J: the sixteen CPA record views (R01-R16)
+`routes/records.py` + `analysis/records.py`, reusing an existing module directly wherever a view is "the same thing already built, surfaced as a report." One generic frontend renderer (`web/components/JsonValue.tsx`) instead of sixteen bespoke layouts (decision logged).
+- [x] R01 return summary vs last year -- `prior_years.return_2024.lines` vs. v3, flagged by the packet's own `firm.starter_standards.variance_review`
+- [x] R02 tax computation -- `scope_lines`/`workpaper_value`
+- [x] R03 area summaries -- tie-outs, open case count, sign-off version, time used
+- [x] R04 document index -- disposition, `trace_document`'s "landed in"
+- [x] R05 depreciation by asset -- federal/california/amt, the condo sale's Form 4797 recapture (needed the new `Asset.disposition` field)
+- [x] R06 sales detail -- reuses the new public `scope_detail_rows` (moved out of `routes/areas.py`)
+- [x] R07 books to tax -- D14's books lines + every `SchC` line with a non-null `note` as the adjustment
+- [x] R08 rentals and passive losses -- `SchE.*`/`F8582.*` lines, prior-year `F8582.unallowed.*`, carried-out passive amounts
+- [x] R09 K-1 lines -- every K-1 document's extracted boxes mapped to the lines whose `sources` cite them (provenance resolver, not a hardcoded box table)
+- [x] R10 retirement and foreign items -- `F8606`/`F8889`/`F8938` lines, SEP (`Sch1.16`), every `*_sek` extracted value, the FBAR outside-filing status
+- [x] R11 deductions and credits -- `SchA`/`F8283`/`F8812` lines, the standard-deduction parameter
+- [x] R12 payments -- reuses the now-public `federal_estimated_payments_posted`/`california_estimated_payments_posted`
+- [x] R13 state split -- every line with `jurisdiction == "california"`, plus residency dates
+- [x] R14 carryovers -- `prior_years.carryovers_into_2025` in, `ReturnVersion.carryovers_out` out
+- [x] R15 basis by year -- `prior_years.basis_records`; a real gap (`None`) passes straight through
+- [x] R16 prior preparer vs. what we changed -- the packet has no line-level prior-preparer data to diff (confirmed by packet-explorer), so this matches each open item against judgments/outside-filing decisions by word overlap instead, rather than forcing the version-diff shape onto data that isn't line-shaped
+- [x] `web/app/records/page.tsx`: one view selector + the generic renderer
+
+### Tests
+- [x] Unit tests for every new action/analysis/route (`test_action_time_tracking.py`, `test_analysis_time_tracking.py`, `test_routes_time.py`, `test_action_outside_filings.py`, `test_analysis_outside_filings.py`, `test_routes_outside_filings.py`, `test_action_judgments.py`, `test_routes_judgments.py`, `test_routes_notifications.py`, `test_routes_search.py`, `test_routes_versions.py`, `test_routes_client.py`, `test_routes_records.py`), plus new `test_permissions.py` cases for `log_time`/`record_judgment_election`/`confirm_outside_filing`
+- [x] Role/permission test proving a client actor gets 403 on every retrofitted staff-surface route (`test_staff_surface_routes_blocked_for_client`), the reverse guard for staff on `/api/client/*` (`test_client_workspace_routes_blocked_for_staff`), and a leak-scan pass over the client workspace itself (`test_client_workspace_never_leaks`)
+- [x] W4 as an automated acceptance test (`api/tests/acceptance/test_w4_client_workspace.py`)
+- [x] `pytest api -q -m "not eval"` x4 total this session (607 passed, 13 skipped three of the four times; one isolated flake in `test_rebuild_matches_a_full_case_lifecycle`, pre-existing and unrelated to Step 9 -- passed immediately on its own retry and on two subsequent full-suite reruns; not a file this session touched. See DECISIONS.md), `npm --prefix web run typecheck` and `npm --prefix web run lint` both clean
+- [x] `ruff check .` -- only pre-existing `B008` noise (FastAPI's `Depends(...)` default pattern, present codebase-wide before this step); the three real findings this step introduced (two import-order, one unused import) fixed
+- [x] Verified live against a real `uvicorn` process (SQLite-backed, see DECISIONS.md) + the real `npm run dev` Next.js server, with Playwright screenshots of activity (needs-me/changed/deadlines), return (version diff showing the real M14 box-move, what-ifs showing all five alternatives), judgments (due-diligence + all four outside filings), records (R01 and R05, incl. the new `Asset.disposition` recapture data), the area page's new time-against-budget section (4.0 real hours from the packet), and the full client workspace including the sign screen's two fingerprints -- every screen rendered real data correctly
+- [ ] Update `docs/AI_USAGE.md`
+- [ ] `/deep-test`, then `/simulate` covering the client-workspace leak scan specifically -- `/simulate` needs the user to type it themselves (the skill refuses model invocation, same as Steps 7-8)
+
 ## Questions still open
 - Does the packet go into the public repo, or load from Vercel Blob?
 - Step 5 will need a way to read a review note's actual text back (body currently lives only in its `review_note_added`/`review_note_responded` events, never on the `review_notes` current-state row) -- flagged by the reviewer agent, not a Step 4 defect since there's no screen yet to show it on.

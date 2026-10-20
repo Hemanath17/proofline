@@ -170,3 +170,73 @@
   color: var(--blocking);
   font-size: 13px;
 }
+
+.pill {
+  font-size: 12px;
+  color: var(--info);
+  background: var(--info-tint);
+  border-radius: 999px;
+  padding: 3px 10px;
+  width: fit-content;
+}
+
+.card {
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.input {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+  min-height: 24px;
+  background: var(--surface);
+}
+
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--rule);
+}
+
+.tab {
+  background: none;
+  border: none;
+  padding: 8px 4px;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tabActive {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.emptyState {
+  color: var(--ink-2);
+  font-size: 13px;
+}

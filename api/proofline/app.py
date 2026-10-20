@@ -14,15 +14,23 @@ from proofline.routes import (
     areas,
     cases,
     checks,
+    client,
     documents,
     filing,
     health,
     household,
+    judgments,
+    notifications,
+    outside_filings,
     readiness,
+    records,
     return_info,
     reveal,
     review_notes,
+    search,
+    time,
     trace,
+    versions,
 )
 from proofline.security.permissions import PermissionDenied
 from proofline.security.redact import install_logging_filter, redact_for_actor
@@ -44,6 +52,14 @@ app.include_router(return_info.router, prefix="/api")
 app.include_router(areas.router, prefix="/api")
 app.include_router(readiness.router, prefix="/api")
 app.include_router(filing.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")
+app.include_router(time.router, prefix="/api")
+app.include_router(search.router, prefix="/api")
+app.include_router(versions.router, prefix="/api")
+app.include_router(judgments.router, prefix="/api")
+app.include_router(outside_filings.router, prefix="/api")
+app.include_router(records.router, prefix="/api")
+app.include_router(client.router, prefix="/api")
 
 install_logging_filter()
 

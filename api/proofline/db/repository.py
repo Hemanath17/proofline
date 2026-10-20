@@ -236,6 +236,18 @@ def get_last_seen(
     return None if row is None else row.seen_at
 
 
+def list_last_seen_entity_ids(
+    session: Session, actor_id: str, entity_type: str
+) -> list[str]:
+    """Every entity id of one type this actor has a `last_seen` row for --
+    used by the notifications feed to find which documents an actor is
+    "following" at all, without scanning every document in the packet."""
+    statement = select(LastSeen.entity_id).where(
+        LastSeen.actor_id == actor_id, LastSeen.entity_type == entity_type
+    )
+    return list(session.scalars(statement))
+
+
 def insert_case(session: Session, case: Case) -> Case:
     session.add(case)
     session.flush()

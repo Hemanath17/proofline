@@ -8,14 +8,14 @@ from proofline.checks.runner import run_all_checks
 from proofline.db.connection import get_session
 from proofline.packet import load_packet
 from proofline.security.actors import Actor
-from proofline.security.dependencies import get_current_actor
+from proofline.security.dependencies import get_current_actor, require_non_client
 from proofline.security.redact import redact_for_actor
 
 router = APIRouter()
 
 
 @router.get("/checks")
-def get_checks(actor: Actor = Depends(get_current_actor)) -> dict:
+def get_checks(actor: Actor = Depends(require_non_client)) -> dict:
     """Live findings, run fresh against the current packet -- not a stored
     snapshot. `POST /api/check-runs` is what takes a snapshot."""
     packet = load_packet()

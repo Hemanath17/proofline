@@ -245,3 +245,161 @@ export type ActivityEvent = {
   revision: number | null;
   payload: Record<string, unknown>;
 };
+
+/** Step 9 (B14/B26): the notifications feed. */
+export type NotificationCase = {
+  entity_type: "case";
+  entity_id: string;
+  label: string;
+  scope?: string;
+  status?: string;
+  changed_at?: string;
+};
+
+export type NotificationDeadline = {
+  label: string;
+  date: string;
+  days_remaining: number;
+  overdue: boolean;
+};
+
+export type NotificationsResponse = {
+  needs_me: NotificationCase[];
+  changed: NotificationCase[];
+  deadlines: NotificationDeadline[];
+};
+
+/** Step 9 (B37): time against budget. */
+export type AreaTimeBudget = {
+  area: string;
+  budget_hours: string | null;
+  logged_hours: string;
+  over_budget: boolean;
+};
+
+export type TimeEntry = {
+  event_id: string;
+  actor_id: string | null;
+  area: string;
+  hours: string;
+  date: string;
+  note: string | null;
+};
+
+export type TimeReport = {
+  budget: AreaTimeBudget[];
+  entries: TimeEntry[];
+};
+
+/** Step 9 (B38): search. */
+export type SearchResult = {
+  type: "case" | "line" | "document" | "note";
+  id: string;
+  title: string;
+  snippet: string;
+};
+
+/** Step 9 (B15): comparing versions. */
+export type VersionDiffLine = {
+  line_key: string;
+  label: string | null;
+  rule: string | null;
+  old_value: unknown;
+  new_value: unknown;
+  changed: boolean;
+  source: string;
+};
+
+export type VersionDiffResponse = {
+  from: string;
+  to: string;
+  lines: VersionDiffLine[];
+};
+
+/** Step 9 (B16): what-ifs. */
+export type WhatIfChangedLine = {
+  line_key: string;
+  change: string;
+  what_if_old: unknown;
+  what_if_new: unknown;
+  current_workpaper_value: unknown;
+};
+
+export type WhatIfAlternative = {
+  id: string;
+  description: string | null;
+  base_version: string;
+  choices: Record<string, unknown>;
+  federal: Record<string, unknown>;
+  california: Record<string, unknown>;
+  changed_lines: WhatIfChangedLine[];
+};
+
+export type WhatIfsResponse = {
+  alternatives: WhatIfAlternative[];
+};
+
+/** Step 9 (B19): judgments and elections. */
+export type Judgment = {
+  id: string;
+  recorded_by: string | null;
+  authority: string;
+  approved_by: string;
+  reasoning: string;
+  claim_key: string | null;
+  is_election: boolean;
+  what_if_id: string | null;
+  case_id: string | null;
+  occurred_at: string | null;
+};
+
+export type DueDiligenceChecklist = {
+  checklist: Array<{ item: string; description: string; line_key?: string }>;
+  done: boolean;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  note: string | null;
+};
+
+/** Step 9 (B20): outside filings. */
+export type OutsideFilingItem = {
+  item: string;
+  label: string;
+  evidence_refs: string[];
+  note: string;
+  decided: boolean;
+  decision: string | null;
+  decided_by: string | null;
+  decided_note: string | null;
+};
+
+/** Step 9 (S5): the client workspace. */
+export type ClientSummary = {
+  federal: { balance_due: unknown; label: string };
+  california: { balance_due: unknown; label: string };
+};
+
+export type ClientQuestionThread = {
+  case_id: string;
+  question: string;
+  asked_at: string | null;
+  answer: string | null;
+  answered_at: string | null;
+};
+
+export type ClientDocument = {
+  id: string;
+  title: string;
+  document_type: string;
+  issuer: string | null;
+  received_at: string | null;
+  kind: "uploaded" | "filed";
+};
+
+export type ClientPackageSummary = {
+  reference: string;
+  amounts_fingerprint: string;
+  identity_fingerprint: string;
+  engine_version: string;
+  summary: ClientSummary;
+};

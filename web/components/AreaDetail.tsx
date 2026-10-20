@@ -5,8 +5,8 @@ import { apiFetch, apiPost, ApiError } from "@/lib/api-client";
 import { useCurrentActor } from "@/lib/session";
 import { ProvenanceBadge } from "@/components/Badges";
 import { TraceableNumber } from "@/components/TraceableNumber";
-import type { AreaDetail as AreaDetailData } from "@/lib/types";
-import styles from "./AreaDetail.module.css";
+import type { AreaDetail as AreaDetailData, AreaTimeBudget, TimeReport } from "@/lib/types";
+import styles from "./Shared.module.css";
 
 const SCOPE_LABEL: Record<string, string> = {
   identity: "Identity and household",
@@ -221,6 +221,73 @@ function TieOutsSection({ data }: { data: AreaDetailData }) {
   );
 }
 
+function TimeBudgetSection({ scope }: { scope: string }) {
+  const [budget, setBudget] = useState<AreaTimeBudget | null>(null);
+  const [hours, setHours] = useState("");
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    apiFetch<TimeReport>("/api/time")
+      .then((body) => setBudget(body.budget.find((row) => row.area === scope) ?? null))
+      .catch(() => setBudget(null));
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope]);
+
+  async function logTime(event: React.FormEvent) {
+    event.preventDefault();
+    setWorking(true);
+    setError(null);
+    try {
+      await apiPost("/api/time", {
+        area: scope,
+        hours,
+        date: new Date().toISOString().slice(0, 10),
+      });
+      setHours("");
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "failed to log time");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  if (!budget) return null;
+
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.sectionTitle}>Time against budget</h2>
+      <p>
+        {budget.logged_hours} of {budget.budget_hours ?? "—"} hour(s) logged
+        {budget.over_budget && <span className={styles.breaks}> · over budget</span>}
+      </p>
+      <form className={styles.formRow} onSubmit={logTime}>
+        <label className={styles.field}>
+          Log hours
+          <input
+            className={styles.input}
+            type="number"
+            step="0.25"
+            min="0.25"
+            required
+            value={hours}
+            onChange={(event) => setHours(event.target.value)}
+          />
+        </label>
+        <button type="submit" className={styles.secondaryButton} disabled={working}>
+          {working ? "Logging..." : "Log time"}
+        </button>
+      </form>
+      {error && <p className={styles.error}>{error}</p>}
+    </section>
+  );
+}
+
 function DetailSection({
   scope,
   data,
@@ -386,6 +453,7 @@ export function AreaDetail({ scope }: { scope: string }) {
       )}
       <ChangesSection scope={scope} data={data} onConfirmed={load} />
       <TieOutsSection data={data} />
+      <TimeBudgetSection scope={scope} />
       <DetailSection scope={scope} data={data} onVerified={load} />
     </div>
   );

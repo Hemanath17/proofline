@@ -36,7 +36,7 @@ from proofline.db.repository import (
 )
 from proofline.packet import load_packet
 from proofline.security.actors import Actor
-from proofline.security.dependencies import get_current_actor
+from proofline.security.dependencies import get_current_actor, require_non_client
 from proofline.security.redact import (
     SensitiveValue,
     collect_sensitive_values,
@@ -93,7 +93,7 @@ def _redact_filing_response(actor: Actor, packet, session: Session, data: Any) -
 
 @router.get("/filing/package")
 def get_package(
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_non_client),
     session: Session = Depends(get_session),
 ) -> dict:
     packet = load_packet()
@@ -170,7 +170,7 @@ def _reveal_pins_if_present(
 
 @router.get("/filing")
 def get_filing_status(
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_non_client),
     session: Session = Depends(get_session),
 ) -> dict:
     packet = load_packet()
@@ -224,7 +224,7 @@ def get_filing_status(
 
 @router.get("/filing/letter-566")
 def get_letter_566_pack(
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_non_client),
     session: Session = Depends(get_session),
 ) -> dict:
     packet = load_packet()

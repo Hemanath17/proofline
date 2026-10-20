@@ -19,7 +19,7 @@ from proofline.provenance.tracing import (
     trace_line,
 )
 from proofline.security.actors import Actor
-from proofline.security.dependencies import get_current_actor
+from proofline.security.dependencies import require_non_client
 from proofline.security.redact import redact_for_actor
 
 router = APIRouter()
@@ -129,7 +129,7 @@ def _document_trace_dict(trace: DocumentTrace) -> dict:
 @router.get("/trace/line/{line_key}")
 def get_trace_line(
     line_key: str,
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_non_client),
     session: Session = Depends(get_session),
 ) -> dict:
     packet = load_packet()
@@ -147,7 +147,7 @@ def get_trace_line(
 
 @router.get("/trace/document/{document_id}")
 def get_trace_document(
-    document_id: str, actor: Actor = Depends(get_current_actor)
+    document_id: str, actor: Actor = Depends(require_non_client)
 ) -> dict:
     packet = load_packet()
     try:

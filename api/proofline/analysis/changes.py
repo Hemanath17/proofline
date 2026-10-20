@@ -9,6 +9,51 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sqlalchemy.orm import Session
+
+from proofline.db.models import Case
+from proofline.db.repository import list_case_proposals
+from proofline.security.actors import Actor
+
+_OPEN_STATUSES = {
+    "open",
+    "investigating",
+    "waiting_on_client",
+    "in_review",
+    "awaiting_partner",
+}
+
+
+def cases_needing_actor(
+    cases: list[Case], session: Session, actor: Actor
+) -> list[Case]:
+    """Role-aware "needs me" filter (docs/UX.md S1), shared by the queue
+    (`routes/cases.py`) and the notifications feed (`analysis/
+    notifications.py`) so the two screens never disagree about what counts
+    as needing this actor's attention."""
+    if actor.role == "preparer":
+        return [
+            c
+            for c in cases
+            if c.status == "open"
+            or (c.status == "investigating" and c.assignee_id == actor.id)
+        ]
+    if actor.role in ("reviewer", "quality_reviewer"):
+        result = []
+        for c in cases:
+            if c.status != "in_review":
+                continue
+            proposals = list_case_proposals(session, c.case_id)
+            if proposals and proposals[-1].proposed_by == actor.id:
+                continue
+            result.append(c)
+        return result
+    if actor.role == "partner":
+        return [c for c in cases if c.status == "awaiting_partner"]
+    return [
+        c for c in cases if c.status in _OPEN_STATUSES and c.assignee_id == actor.id
+    ]
+
 
 def changed_since_last_seen(
     entity_updated_at: datetime, last_seen_at: datetime | None

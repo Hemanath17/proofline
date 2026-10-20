@@ -8,14 +8,24 @@ import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { KeyboardLayer } from "@/components/KeyboardLayer";
 import { CommandMenu } from "@/components/CommandMenu";
 import { TraceDrawer } from "@/components/TraceDrawer";
+import { useCurrentActor } from "@/lib/session";
 import styles from "./AppShell.module.css";
 
-const RAIL_ITEMS: Array<{ href: string; label: string }> = [
+const STAFF_RAIL_ITEMS: Array<{ href: string; label: string }> = [
   { href: "/queue", label: "Queue" },
   { href: "/areas", label: "Areas" },
   { href: "/documents", label: "Documents" },
   { href: "/return", label: "Return" },
+  { href: "/records", label: "Records" },
+  { href: "/judgments", label: "Judgments" },
   { href: "/activity", label: "Activity" },
+];
+
+// S5 (Step 9): the client workspace is a genuinely smaller surface, not
+// the staff rail with fewer items -- a client gets exactly one
+// destination, matching the one small API surface they can actually call.
+const CLIENT_RAIL_ITEMS: Array<{ href: string; label: string }> = [
+  { href: "/client", label: "My return" },
 ];
 
 type ReturnInfo = {
@@ -46,6 +56,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const info = useReturnInfo();
+  const { actor } = useCurrentActor();
+  const isClient = actor?.role === "client";
+  const railItems = isClient ? CLIENT_RAIL_ITEMS : STAFF_RAIL_ITEMS;
 
   return (
     <div className={styles.shell}>
@@ -70,7 +83,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         <nav aria-label="Primary">
           <ul className={styles.railList}>
-            {RAIL_ITEMS.map((item) => {
+            {railItems.map((item) => {
               const active = pathname?.startsWith(item.href);
               return (
                 <li key={item.href}>
@@ -93,14 +106,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {info && <span className={`${styles.engineBadge} mono`}>{info.engine_version}</span>}
           </div>
           <div className={styles.topBarRight}>
-            <button
-              type="button"
-              className={styles.searchStub}
-              onClick={() => window.dispatchEvent(new Event("proofline:open-command-menu"))}
-              aria-label="Open command menu"
-            >
-              Search... <span className="mono">Cmd/Ctrl+K</span>
-            </button>
+            {!isClient && (
+              <button
+                type="button"
+                className={styles.searchStub}
+                onClick={() => window.dispatchEvent(new Event("proofline:open-command-menu"))}
+                aria-label="Open command menu"
+              >
+                Search... <span className="mono">Cmd/Ctrl+K</span>
+              </button>
+            )}
             <RoleSwitcher />
           </div>
         </header>

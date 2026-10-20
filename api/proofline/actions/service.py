@@ -22,10 +22,13 @@ from proofline.actions import (
     check_runs,
     disposition,
     filing,
+    judgments,
+    outside_filings,
     readiness,
     reveal,
     review_notes,
     sign_offs,
+    time_tracking,
 )
 from proofline.actions.results import ActionResult
 from proofline.packet import Packet
@@ -57,6 +60,9 @@ _HANDLERS = {
     "confirm_readiness_item": readiness.confirm_readiness_item,
     "authorize_filing": filing.authorize_filing,
     "submit_filing": filing.submit_filing,
+    "log_time": time_tracking.log_time,
+    "record_judgment_election": judgments.record_judgment_election,
+    "confirm_outside_filing": outside_filings.confirm_outside_filing,
 }
 
 

@@ -13,7 +13,11 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from proofline.actions.service import perform
-from proofline.analysis.changes import case_change_summary, changed_since_last_seen
+from proofline.analysis.changes import (
+    case_change_summary,
+    cases_needing_actor,
+    changed_since_last_seen,
+)
 from proofline.db.connection import get_session
 from proofline.db.models import Case
 from proofline.db.repository import (
@@ -27,7 +31,7 @@ from proofline.db.repository import (
 )
 from proofline.packet import load_packet
 from proofline.security.actors import Actor, load_actors
-from proofline.security.dependencies import get_current_actor
+from proofline.security.dependencies import get_current_actor, require_non_client
 from proofline.security.redact import redact_for_actor
 
 router = APIRouter()
@@ -108,36 +112,11 @@ def _case_row(session: Session, actor: Actor, case: Case) -> dict:
     return row
 
 
-def _needs_me(cases: list[Case], session: Session, actor: Actor) -> list[Case]:
-    if actor.role == "preparer":
-        return [
-            c
-            for c in cases
-            if c.status == "open"
-            or (c.status == "investigating" and c.assignee_id == actor.id)
-        ]
-    if actor.role in ("reviewer", "quality_reviewer"):
-        result = []
-        for c in cases:
-            if c.status != "in_review":
-                continue
-            proposals = list_case_proposals(session, c.case_id)
-            if proposals and proposals[-1].proposed_by == actor.id:
-                continue
-            result.append(c)
-        return result
-    if actor.role == "partner":
-        return [c for c in cases if c.status == "awaiting_partner"]
-    return [
-        c for c in cases if c.status in _OPEN_STATUSES and c.assignee_id == actor.id
-    ]
-
-
 def _filter_by_tab(
     cases: list[Case], session: Session, actor: Actor, tab: str
 ) -> list[Case]:
     if tab == "needs_me":
-        return _needs_me(cases, session, actor)
+        return cases_needing_actor(cases, session, actor)
     if tab == "all_open":
         return [c for c in cases if c.status in _OPEN_STATUSES]
     if tab == "waiting_on_client":
@@ -156,7 +135,7 @@ def _tax_effect_total(cases: list[Case]) -> dict[str, str]:
 @router.get("/cases")
 def list_queue(
     tab: str = Query(default="needs_me"),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_non_client),
     session: Session = Depends(get_session),
 ) -> dict:
     packet = load_packet()
@@ -191,7 +170,7 @@ def list_queue(
 @router.get("/cases/{case_id}")
 def get_case_detail(
     case_id: str,
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_non_client),
     session: Session = Depends(get_session),
 ) -> dict:
     packet = load_packet()
@@ -212,7 +191,7 @@ def get_case_detail(
 @router.get("/cases/{case_id}/activity")
 def get_case_activity(
     case_id: str,
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_non_client),
     session: Session = Depends(get_session),
 ) -> dict:
     """The event timeline for one case (docs/UX.md S2 "Activity"), newest

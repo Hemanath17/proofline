@@ -9,7 +9,7 @@ from proofline.db.connection import get_session
 from proofline.db.repository import list_review_notes
 from proofline.packet import load_packet
 from proofline.security.actors import Actor
-from proofline.security.dependencies import get_current_actor
+from proofline.security.dependencies import get_current_actor, require_non_client
 from proofline.security.redact import redact_for_actor
 
 router = APIRouter()
@@ -35,7 +35,7 @@ class ResolveReviewNoteRequest(BaseModel):
 def list_notes(
     about_type: str | None = Query(default=None),
     about_id: str | None = Query(default=None),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_non_client),
     session: Session = Depends(get_session),
 ) -> dict:
     packet = load_packet()

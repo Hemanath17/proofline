@@ -19,10 +19,15 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from proofline.analysis.calculation import line_claim_identity
+from proofline.analysis.calculation import line_claim_identity, workpaper_value
 from proofline.checks.models import Area
 from proofline.db.canonical import canonical_hash
-from proofline.db.repository import list_case_decisions, list_cases
+from proofline.db.models import Adjustment
+from proofline.db.repository import (
+    get_claim_verification,
+    list_case_decisions,
+    list_cases,
+)
 from proofline.packet import Line, Packet, ReturnVersion
 
 _FORM_SCOPE: dict[str, Area] = {
@@ -73,6 +78,38 @@ def line_scope(line: Line) -> Area:
 
 def scope_lines(rv: ReturnVersion, scope: Area) -> list[Line]:
     return [line for line in rv.lines if line_scope(line) == scope]
+
+
+def scope_detail_rows(
+    session: Session,
+    packet: Packet,
+    rv: ReturnVersion,
+    scope: Area,
+    adjustments: dict[str, Adjustment],
+) -> list[dict]:
+    """Every line in a scope with its claim identity, workpaper value and
+    verification state (docs/UX.md S3's large detail) -- moved here from
+    `routes/areas.py` so Step 9's R06 (sales detail) and R07 (books-to-tax)
+    can reuse it as "the same thing already built, surfaced as a report"
+    instead of a second copy of this loop."""
+    rows = []
+    for line in scope_lines(rv, scope):
+        claim = line_claim_identity(packet, line)
+        claim_key = str(claim) if claim is not None else None
+        verification = get_claim_verification(session, claim_key) if claim_key else None
+        workpaper = workpaper_value(packet, rv, line.key, adjustments)
+        rows.append(
+            {
+                "line_key": line.key,
+                "label": line.label,
+                "claim_key": claim_key,
+                "value": workpaper.value,
+                "provenance_label": workpaper.label,
+                "verified": verification is not None,
+                "verified_by": verification.verified_by if verification else None,
+            }
+        )
+    return rows
 
 
 def _comparison_key(packet: Packet, line: Line) -> str:

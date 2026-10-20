@@ -8,7 +8,7 @@ say so, in code and in docs.
 
 from __future__ import annotations
 
-from fastapi import Header, HTTPException, Request
+from fastapi import Depends, Header, HTTPException, Request
 
 from proofline.packet import load_packet
 from proofline.security.actors import Actor, load_actors
@@ -34,4 +34,29 @@ def get_current_actor(
     # without re-deriving it -- FastAPI dependency results aren't otherwise
     # reachable from an exception handler.
     request.state.actor = actor
+    return actor
+
+
+def require_non_client(actor: Actor = Depends(get_current_actor)) -> Actor:
+    """Step 9 (S5): the staff surface (areas, cases, documents, trace,
+    readiness, review notes, checks, filing status) is not for a client --
+    "not the staff UI with fewer buttons, a genuinely smaller API surface."
+    The AI assistant keeps read access here (CONTRACTS.md: "the AI... can
+    read"), so this blocks only `client`, never every non-staff role."""
+    if actor.role == "client":
+        raise HTTPException(
+            status_code=403,
+            detail="clients use the client workspace (/api/client/*), not this endpoint",
+        )
+    return actor
+
+
+def require_client(actor: Actor = Depends(get_current_actor)) -> Actor:
+    """The reverse guard, for the new `/api/client/*` surface itself --
+    staff and the AI assistant have their own full surface already."""
+    if actor.role != "client":
+        raise HTTPException(
+            status_code=403,
+            detail="the client workspace is for the client role only",
+        )
     return actor

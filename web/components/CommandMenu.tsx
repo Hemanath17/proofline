@@ -2,18 +2,33 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api-client";
+import type { SearchResult } from "@/lib/types";
 import styles from "./CommandMenu.module.css";
 
 type Command = { label: string; run: () => void };
 
-/** Cmd/Ctrl+K command menu (docs/UX.md Top bar). Full search across
- * cases, lines, documents (the UX spec's eventual scope) is Step 9 work;
- * for now this gives quick navigation plus jumping straight to a case id,
- * which is already genuinely useful rather than a inert placeholder. */
+function hrefForResult(result: SearchResult): string {
+  switch (result.type) {
+    case "case":
+      return `/cases/${result.id}`;
+    case "line":
+      return `/trace/line/${result.id}`;
+    case "document":
+      return `/documents/${result.id}`;
+    case "note":
+      return "/activity";
+  }
+}
+
+/** Cmd/Ctrl+K command menu (docs/UX.md Top bar). Step 9 (B38): full
+ * search across cases, lines, documents and review notes, plus the
+ * original quick-navigation commands. */
 export function CommandMenu() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,15 +56,38 @@ export function CommandMenu() {
     if (open) inputRef.current?.focus();
   }, [open]);
 
+  const trimmed = query.trim();
+
+  useEffect(() => {
+    if (!open || trimmed.length < 2) {
+      setResults([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      apiFetch<{ results: SearchResult[] }>(`/api/search?q=${encodeURIComponent(trimmed)}`)
+        .then((body) => {
+          if (!cancelled) setResults(body.results);
+        })
+        .catch(() => {
+          if (!cancelled) setResults([]);
+        });
+    }, 150);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [open, trimmed]);
+
   if (!open) return null;
 
   const commands: Command[] = [
     { label: "Go to queue", run: () => router.push("/queue") },
     { label: "Go to areas", run: () => router.push("/areas") },
     { label: "Go to documents", run: () => router.push("/documents") },
+    { label: "Go to activity", run: () => router.push("/activity") },
   ];
 
-  const trimmed = query.trim();
   const filtered = commands.filter((command) =>
     command.label.toLowerCase().includes(trimmed.toLowerCase()),
   );
@@ -98,9 +136,23 @@ export function CommandMenu() {
               </button>
             </li>
           ))}
-          {filtered.length === 0 && (
+          {results.map((result) => (
+            <li key={`${result.type}-${result.id}`}>
+              <button
+                type="button"
+                className={styles.result}
+                onClick={() => runAndClose({ label: result.title, run: () => router.push(hrefForResult(result)) })}
+              >
+                <span className="mono">{result.type}</span> {result.title}
+                <br />
+                <small>{result.snippet}</small>
+              </button>
+            </li>
+          ))}
+          {filtered.length === 0 && results.length === 0 && (
             <li className={styles.hint}>
-              Type a case id (case-...) or document id (D01) and press Enter.
+              Search cases, lines, documents and notes, or type a case id (case-...) or
+              document id (D01) and press Enter.
             </li>
           )}
         </ul>

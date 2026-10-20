@@ -13,7 +13,7 @@ from proofline.analysis.readiness import readiness_report
 from proofline.db.connection import get_session
 from proofline.packet import load_packet
 from proofline.security.actors import Actor
-from proofline.security.dependencies import get_current_actor
+from proofline.security.dependencies import get_current_actor, require_non_client
 from proofline.security.redact import redact_for_actor
 
 router = APIRouter()
@@ -25,7 +25,7 @@ class ConfirmReadinessItemRequest(BaseModel):
 
 @router.get("/readiness")
 def get_readiness(
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_non_client),
     session: Session = Depends(get_session),
 ) -> dict:
     packet = load_packet()

@@ -38,6 +38,10 @@ ActionName = Literal[
     "confirm_readiness_item",
     "authorize_filing",
     "submit_filing",
+    # Step 9: time against budget, judgments/elections, outside filings
+    "log_time",
+    "record_judgment_election",
+    "confirm_outside_filing",
 ]
 
 _REVIEWER_ROLES = {"reviewer", "partner", "quality_reviewer"}
@@ -160,7 +164,12 @@ def check_permission(
                 "only the client, or staff recording on the client's behalf, may "
                 "authorize filing"
             )
-    elif action == "submit_filing":
+    elif action in (
+        "submit_filing",
+        "log_time",
+        "record_judgment_election",
+        "confirm_outside_filing",
+    ):
         if not actor.is_staff:
             raise PermissionDenied("staff only")
     else:

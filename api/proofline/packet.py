@@ -182,17 +182,54 @@ class ClientUser(BaseModel):
     role: str
 
 
+class Deadline(BaseModel):
+    what: str
+    date: str
+
+
+class VarianceReview(BaseModel):
+    compare_to: str
+    flag_if_change_over_percent: Decimal
+    and_over_amount: Decimal
+
+
+class StarterStandards(BaseModel):
+    """The firm's own written standards -- Step 9's variance rule (R01)
+    and due-diligence checklist (Part G) both read these rather than
+    hardcoding the 10%/1,000 thresholds or the due-diligence credit list
+    a second time."""
+
+    model_config = ConfigDict(extra="allow")
+
+    required_steps: list[str] = []
+    rules: list[str] = []
+    review_levels: list[str] = []
+    verification_types: list[str] = []
+    variance_review: VarianceReview | None = None
+    note: str | None = None
+
+
 class Firm(BaseModel):
     """`staff` and `client_users` are what Step 4's roles and redaction
-    need, so they're typed. Everything else (`firm_identity`,
-    `starter_standards`, `deadlines`, `budget_hours`, `assignment_at_start`)
-    stays loose, the same way `PriorYears` does above -- nothing outside
-    this module inspects those yet."""
+    need, so they're typed; Step 9 adds `assignment_at_start`, `deadlines`,
+    `budget_hours` and `starter_standards` for notifications, time-against-
+    budget and the variance/due-diligence views. Everything else
+    (`firm_identity`) stays loose, the same way `PriorYears` does below --
+    nothing outside this module inspects it yet."""
 
     model_config = ConfigDict(extra="allow")
 
     staff: list[StaffMember] = []
     client_users: list[ClientUser] = []
+    # Role -> staff id, e.g. {"preparer": "st-01", "reviewer": "st-02",
+    # "partner": "st-03"} -- a flat role assignment, not per-scope.
+    assignment_at_start: dict[str, str] = {}
+    deadlines: list[Deadline] = []
+    # Area key (the packet's own, e.g. "investments_and_digital_assets") ->
+    # budgeted hours. Deliberately not the engine's Area literal -- mapped
+    # by proofline.analysis.time_tracking, not here.
+    budget_hours: dict[str, Decimal] = {}
+    starter_standards: StarterStandards = StarterStandards()
 
 
 class TimelineEvent(BaseModel):
@@ -230,6 +267,11 @@ class Asset(BaseModel):
     california: dict[str, Any] = {}
     amt: dict[str, Any] | None = None
     disposed: bool | str | None = None
+    # Step 9 (R05): the Form 4797 recapture detail for a disposed asset
+    # (date, sold_with, unrecaptured 1250 depreciation, section 1250
+    # ordinary recapture) -- was silently dropped before this field existed,
+    # since Pydantic ignores unmodeled keys by default.
+    disposition: dict[str, Any] | None = None
     sources: list[str] = []
 
 

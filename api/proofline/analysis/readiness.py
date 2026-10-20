@@ -21,6 +21,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from proofline.analysis.outside_filings import outside_filings_report
 from proofline.analysis.signoff import (
     changes_since_sign_off,
     compute_fingerprints,
@@ -210,7 +211,7 @@ def _partner_sign_off(session: Session) -> ReadinessItem:
     )
 
 
-def _federal_estimated_payments_posted(packet: Packet) -> Decimal:
+def federal_estimated_payments_posted(packet: Packet) -> Decimal:
     transcripts = packet.tax_agency_records.irs_account_transcript_2025
     if not transcripts:
         return Decimal(0)
@@ -230,7 +231,7 @@ def _federal_estimated_payments_posted(packet: Packet) -> Decimal:
     return total
 
 
-def _california_estimated_payments_posted(packet: Packet) -> Decimal:
+def california_estimated_payments_posted(packet: Packet) -> Decimal:
     payments = packet.tax_agency_records.ftb_account.get("tax_year_2025_payments", [])
     total = Decimal(0)
     for payment in payments:
@@ -247,7 +248,7 @@ def _estimated_payments_agreed(packet: Packet, rv) -> ReadinessItem:
     )
     if federal_line is not None:
         declared = parse_money(federal_line.value) or Decimal(0)
-        posted = _federal_estimated_payments_posted(packet)
+        posted = federal_estimated_payments_posted(packet)
         if declared != posted:
             reasons.append(
                 f"federal estimated payments declared {declared} vs IRS transcript {posted}"
@@ -257,7 +258,7 @@ def _estimated_payments_agreed(packet: Packet, rv) -> ReadinessItem:
     )
     if california_line is not None:
         declared = parse_money(california_line.value) or Decimal(0)
-        posted = _california_estimated_payments_posted(packet)
+        posted = california_estimated_payments_posted(packet)
         if declared != posted:
             reasons.append(
                 f"California estimated payments declared {declared} vs FTB account {posted}"
@@ -310,7 +311,7 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat()
 
 
-def _attestation_item(session: Session, item: str, label: str) -> ReadinessItem:
+def attestation_item(session: Session, item: str, label: str) -> ReadinessItem:
     events: list[Event] = list_events_for_entity(session, "readiness_item", item)
     if not events:
         return ReadinessItem(
@@ -333,6 +334,23 @@ def _attestation_item(session: Session, item: str, label: str) -> ReadinessItem:
     )
 
 
+def _outside_filings_decided(session: Session, packet: Packet) -> ReadinessItem:
+    """C5's last condition: "every outside filing decided" (Step 9, B20)."""
+    undecided = [
+        status.label
+        for status in outside_filings_report(session, packet)
+        if not status.decided
+    ]
+    reasons = [] if not undecided else [f"not yet decided: {', '.join(undecided)}"]
+    return ReadinessItem(
+        item="outside_filings_decided",
+        label="Outside filings decided",
+        kind="derived",
+        met=not undecided,
+        reasons=reasons,
+    )
+
+
 def readiness_report(session: Session, packet: Packet) -> dict:
     rv = packet.return_versions[-1]
     items = [
@@ -344,8 +362,9 @@ def readiness_report(session: Session, packet: Packet) -> dict:
         _partner_sign_off(session),
         _estimated_payments_agreed(packet, rv),
         _carryovers_agreed(session, packet, rv),
+        _outside_filings_decided(session, packet),
         *(
-            _attestation_item(session, item, label)
+            attestation_item(session, item, label)
             for item, label in ATTESTATION_ITEMS.items()
         ),
     ]

@@ -21,18 +21,17 @@ from proofline.actions.sign_offs import (
 from proofline.analysis.calculation import (
     adjustments_by_claim,
     line_claim_identity,
-    workpaper_value,
 )
 from proofline.analysis.signoff import (
     changes_since_sign_off,
     compute_fingerprints,
+    scope_detail_rows,
     scope_lines,
 )
 from proofline.analysis.tie_outs import scope_tie_outs
 from proofline.checks.models import Area
 from proofline.db.connection import get_session
 from proofline.db.repository import (
-    get_claim_verification,
     get_latest_sign_off,
     list_adjustments,
     list_cases,
@@ -40,7 +39,7 @@ from proofline.db.repository import (
 )
 from proofline.packet import load_packet
 from proofline.security.actors import Actor
-from proofline.security.dependencies import get_current_actor
+from proofline.security.dependencies import get_current_actor, require_non_client
 from proofline.security.redact import redact_for_actor
 
 router = APIRouter()
@@ -195,31 +194,10 @@ def _changes_payload(
     }
 
 
-def _detail_rows(session: Session, packet, rv, scope: Area, adjustments) -> list[dict]:
-    rows = []
-    for line in scope_lines(rv, scope):
-        claim = line_claim_identity(packet, line)
-        claim_key = str(claim) if claim is not None else None
-        verification = get_claim_verification(session, claim_key) if claim_key else None
-        workpaper = workpaper_value(packet, rv, line.key, adjustments)
-        rows.append(
-            {
-                "line_key": line.key,
-                "label": line.label,
-                "claim_key": claim_key,
-                "value": workpaper.value,
-                "provenance_label": workpaper.label,
-                "verified": verification is not None,
-                "verified_by": verification.verified_by if verification else None,
-            }
-        )
-    return rows
-
-
 @router.get("/areas/{scope}")
 def get_area(
     scope: str,
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_non_client),
     session: Session = Depends(get_session),
 ) -> dict:
     area = _require_area(scope)
@@ -256,7 +234,7 @@ def get_area(
             }
             for t in scope_tie_outs(packet, rv, area, adjustments)
         ],
-        "detail": _detail_rows(session, packet, rv, area, adjustments),
+        "detail": scope_detail_rows(session, packet, rv, area, adjustments),
     }
     return redact_for_actor(actor, packet, body)
 

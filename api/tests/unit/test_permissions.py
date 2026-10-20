@@ -245,3 +245,29 @@ def test_submit_filing_denied_for_client_and_ai_assistant(actor: Actor) -> None:
     with pytest.raises(PermissionDenied) as exc_info:
         check_permission(actor, "submit_filing")
     assert exc_info.value.rule == "staff only"
+
+
+@pytest.mark.parametrize(
+    "action",
+    ["log_time", "record_judgment_election", "confirm_outside_filing"],
+)
+@pytest.mark.parametrize(
+    "actor", [PREPARER, REVIEWER, PARTNER, MARCUS, FIRM_ADMIN, QUALITY_REVIEWER]
+)
+def test_step9_log_only_actions_allowed_for_any_staff(
+    actor: Actor, action: str
+) -> None:
+    check_permission(actor, action)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "action",
+    ["log_time", "record_judgment_election", "confirm_outside_filing"],
+)
+@pytest.mark.parametrize("actor", [CLIENT, AI_ASSISTANT])
+def test_step9_log_only_actions_denied_for_client_and_ai_assistant(
+    actor: Actor, action: str
+) -> None:
+    with pytest.raises(PermissionDenied) as exc_info:
+        check_permission(actor, action)  # type: ignore[arg-type]
+    assert exc_info.value.rule == "staff only"

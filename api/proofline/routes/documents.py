@@ -17,7 +17,7 @@ from proofline.db.repository import get_document_disposition
 from proofline.packet import load_packet
 from proofline.provenance.tracing import trace_document
 from proofline.security.actors import Actor
-from proofline.security.dependencies import get_current_actor
+from proofline.security.dependencies import require_non_client
 from proofline.security.redact import (
     collect_sensitive_values,
     redact_for_actor,
@@ -41,7 +41,7 @@ def _document_summary(document) -> dict:
 
 
 @router.get("/documents")
-def list_documents(actor: Actor = Depends(get_current_actor)) -> dict:
+def list_documents(actor: Actor = Depends(require_non_client)) -> dict:
     packet = load_packet()
     documents = [_document_summary(document) for document in packet.documents]
     return redact_for_actor(actor, packet, {"documents": documents})
@@ -50,7 +50,7 @@ def list_documents(actor: Actor = Depends(get_current_actor)) -> dict:
 @router.get("/documents/{document_id}")
 def get_document_detail(
     document_id: str,
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_non_client),
     session: Session = Depends(get_session),
 ) -> dict:
     """The document trace page (docs/UX.md S4 "Document trace"): metadata,
@@ -92,7 +92,7 @@ def get_document_detail(
 def get_document_page(
     document_id: str,
     page_number: int,
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_non_client),
     session: Session = Depends(get_session),
 ) -> dict:
     packet = load_packet()
