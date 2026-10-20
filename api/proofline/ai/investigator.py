@@ -27,7 +27,7 @@ from proofline.packet import load_packet
 from proofline.security.actors import AI_ASSISTANT_ID, Actor, load_actors
 
 PROMPT_VERSION = 1
-DEFAULT_MODEL_NAME = "llama-3.3-70b-versatile"
+DEFAULT_MODEL_NAME = "openai/gpt-oss-120b"
 DEFAULT_MAX_TOOL_CALLS = 12
 DEFAULT_MAX_TOTAL_TOKENS = 20_000
 

@@ -11,7 +11,7 @@ import os
 
 from deepeval.models.base_model import DeepEvalBaseLLM
 
-DEFAULT_JUDGE_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_JUDGE_MODEL = "openai/gpt-oss-120b"
 
 
 class GroqJudgeModel(DeepEvalBaseLLM):
