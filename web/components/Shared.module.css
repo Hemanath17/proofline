@@ -13,10 +13,6 @@
   padding-bottom: var(--space-2);
 }
 
-.title {
-  font-size: 20px;
-}
-
 .metaRow {
   display: flex;
   align-items: center;
@@ -262,7 +258,7 @@ details[open] > .groupSummary::before {
 .input {
   border: 1px solid var(--rule);
   border-radius: 6px;
-  padding: 6px 8px;
+  padding: 6px 10px;
   font-size: 13px;
   min-height: 24px;
   background: var(--surface);
@@ -293,4 +289,13 @@ details[open] > .groupSummary::before {
 .emptyState {
   color: var(--ink-2);
   font-size: 13px;
+}
+
+/* A loading state is not an empty state said plainly -- it's a brief,
+   in-between moment that still deserves a reserved, settled layout rather
+   than one bare line of text that makes the page jump once data lands. */
+.loadingState {
+  color: var(--ink-2);
+  font-size: 13px;
+  padding: var(--space-3) 0;
 }

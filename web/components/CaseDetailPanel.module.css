@@ -10,6 +10,11 @@
   color: var(--ink-2);
 }
 
+.loading {
+  font-size: 13px;
+  padding: var(--space-3) 0;
+}
+
 .error {
   color: var(--blocking);
 }

@@ -24,7 +24,7 @@ function looksLikeJson(text: string): boolean {
 
 function JudgmentsSection() {
   const { actorId } = useCurrentActor();
-  const [judgments, setJudgments] = useState<Judgment[]>([]);
+  const [judgments, setJudgments] = useState<Judgment[] | null>(null);
   const [authority, setAuthority] = useState("");
   const [reasoning, setReasoning] = useState("");
   const [isElection, setIsElection] = useState(false);
@@ -68,8 +68,11 @@ function JudgmentsSection() {
 
   return (
     <section className={styles.section}>
-      <h2 className={styles.sectionTitle}>Judgments and elections ({judgments.length})</h2>
-      {judgments.map((judgment) => (
+      <h2 className={styles.sectionTitle}>
+        Judgments and elections {judgments !== null && `(${judgments.length})`}
+      </h2>
+      {judgments === null && <p className={styles.loadingState}>Loading...</p>}
+      {judgments?.map((judgment) => (
         <div key={judgment.id} className={styles.card}>
           <span>{judgment.reasoning}</span>
           <span className={styles.small}>

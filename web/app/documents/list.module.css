@@ -5,6 +5,12 @@
   margin-top: var(--space-2);
 }
 
+.loading {
+  color: var(--ink-2);
+  font-size: 13px;
+  padding: var(--space-3) 0;
+}
+
 .row {
   display: grid;
   grid-template-columns: 60px 1fr auto auto;

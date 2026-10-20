@@ -32,7 +32,7 @@ function SummaryTab() {
     apiFetch<ClientSummary>("/api/client/summary").then(setData).catch(() => setData(null));
   }, []);
 
-  if (!data) return <p className={styles.emptyState}>Loading...</p>;
+  if (!data) return <p className={styles.loadingState}>Loading...</p>;
 
   return (
     <section className={styles.section}>
@@ -142,7 +142,7 @@ function SignTab() {
     }
   }
 
-  if (!pkg) return <p className={styles.emptyState}>Loading...</p>;
+  if (!pkg) return <p className={styles.loadingState}>Loading...</p>;
 
   return (
     <section className={styles.section}>

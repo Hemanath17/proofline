@@ -76,6 +76,15 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
+/* One deliberate page-title size for every screen (docs/UX.md density:
+   "comfortable, not cramped" -- a dense data tool doesn't need a display-size
+   h1). Without this, a bare <h1> falls back to the browser default (~28px,
+   bold), which several screens were doing by accident. */
+h1 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

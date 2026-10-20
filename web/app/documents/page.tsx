@@ -32,7 +32,7 @@ export default function DocumentsPage() {
   return (
     <div>
       <h1>Documents</h1>
-      {!documents && <p style={{ color: "var(--ink-2)", marginTop: 8 }}>Loading...</p>}
+      {!documents && <p className={styles.loading}>Loading...</p>}
       <ul className={styles.list}>
         {documents?.map((document) => (
           <li key={document.id}>

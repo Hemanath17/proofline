@@ -152,6 +152,8 @@ function QueueView() {
           </div>
         </div>
 
+        {!queue && <p className={styles.loadingState}>Loading...</p>}
+
         {queue && visibleGroups.length === 0 && (
           <p className={styles.emptyState}>
             Nothing needs you.{" "}

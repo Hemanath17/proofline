@@ -32,7 +32,7 @@ export default function ActivityPage() {
     <div className={styles.page}>
       <h1>Activity</h1>
       {error && <p className={styles.error}>{error}</p>}
-      {!data && !error && <p className={styles.emptyState}>Loading...</p>}
+      {!data && !error && <p className={styles.loadingState}>Loading...</p>}
       {data && (
         <>
           <section className={styles.section}>

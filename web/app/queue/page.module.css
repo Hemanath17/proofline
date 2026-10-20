@@ -91,6 +91,12 @@
   padding: var(--space-3);
 }
 
+.loadingState {
+  color: var(--ink-2);
+  font-size: 13px;
+  padding: var(--space-3) 0;
+}
+
 .group {
   display: flex;
   flex-direction: column;

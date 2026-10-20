@@ -82,7 +82,7 @@ function SignOffHeader({
 
   return (
     <header className={styles.header}>
-      <h1 className={styles.title}>{SCOPE_LABEL[scope] ?? scope}</h1>
+      <h1>{SCOPE_LABEL[scope] ?? scope}</h1>
       <div className={styles.metaRow}>
         <span
           className={`${styles.statePill} ${
@@ -550,7 +550,7 @@ export function AreaDetail({ scope }: { scope: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope]);
 
-  if (loading && !data) return <p className={styles.small}>Loading...</p>;
+  if (loading && !data) return <p className={styles.loadingState}>Loading...</p>;
   if (error) return <p className={styles.error}>{error}</p>;
   if (!data) return null;
 

@@ -111,7 +111,7 @@ function WhatIfsTab() {
   }, []);
 
   if (error) return <p className={styles.error}>{error}</p>;
-  if (!data) return <p className={styles.emptyState}>Loading...</p>;
+  if (!data) return <p className={styles.loadingState}>Loading...</p>;
 
   return (
     <>

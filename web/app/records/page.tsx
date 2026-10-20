@@ -37,6 +37,8 @@ export default function RecordsPage() {
   const view = VIEWS.find((v) => v.id === viewId) ?? VIEWS[0];
 
   useEffect(() => {
+    setData(null);
+    setError(null);
     apiFetch<unknown>(view.path)
       .then((body) => {
         setData(body);
@@ -59,6 +61,7 @@ export default function RecordsPage() {
         </select>
       </label>
       {error && <p className={styles.error}>{error}</p>}
+      {!error && data === null && <p className={styles.loadingState}>Loading...</p>}
       {data !== null && (
         <section className={styles.section}>
           <JsonValue value={data} />
