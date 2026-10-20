@@ -14,10 +14,14 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from groq import AsyncGroq
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import ModelResponse
+from pydantic_ai.models import Model
 from pydantic_ai.models.groq import GroqModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.groq import GroqProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.usage import UsageLimits
 from sqlalchemy.orm import Session
 
@@ -28,8 +32,28 @@ from proofline.security.actors import AI_ASSISTANT_ID, Actor, load_actors
 
 PROMPT_VERSION = 1
 DEFAULT_MODEL_NAME = "openai/gpt-oss-120b"
+# Temporary, one-time escape hatch (docs/DECISIONS.md, 2026-10-20): the
+# shipped default is Groq (CLAUDE.md). AI_INVESTIGATOR_PROVIDER=openai lets
+# today's real eval run against OpenAI instead, because Groq's daily token
+# budget was exhausted -- it is not a permanent dual-provider mechanism and
+# should not be left set anywhere persistent.
+DEFAULT_OPENAI_MODEL_NAME = "gpt-5-nano"
 DEFAULT_MAX_TOOL_CALLS = 12
 DEFAULT_MAX_TOTAL_TOKENS = 20_000
+# The groq SDK already retries 429/5xx with exponential backoff + jitter,
+# honouring a `Retry-After` header when Groq sends one (groq._base_client
+# .BaseClient._calculate_retry_timeout/_should_retry) -- we only need to
+# raise its budget, not hand-roll a second backoff loop. The default of 2
+# is tuned for a single isolated call; the eval suite fires many
+# model-heavy golden cases back to back against the same per-minute token
+# budget, so a bad-luck case can need more than 2 attempts to land inside
+# a window that still has room.
+GROQ_MAX_RETRIES = 5
+# A bad/unresolvable id from the model is recoverable (ModelRetry feeds
+# the error back as a retry prompt, tools.py) -- these two tools are the
+# ones the model supplies an id to, so they're the ones that benefit from
+# a bigger retry budget than the agent's own default (1).
+TOOL_RETRIES = 2
 
 _SYSTEM_PROMPT = """You are the Evidence Investigator for a CPA firm's tax workpaper.
 
@@ -105,18 +129,33 @@ def usage_limits() -> UsageLimits:
     )
 
 
+def _provider() -> str:
+    return os.environ.get("AI_INVESTIGATOR_PROVIDER", "groq").strip().lower()
+
+
 def model_name() -> str:
-    return os.environ.get("AI_INVESTIGATOR_MODEL", DEFAULT_MODEL_NAME)
+    default = (
+        DEFAULT_OPENAI_MODEL_NAME if _provider() == "openai" else DEFAULT_MODEL_NAME
+    )
+    return os.environ.get("AI_INVESTIGATOR_MODEL", default)
 
 
-def _build_model() -> GroqModel:
+def _build_model() -> Model:
+    if _provider() == "openai":
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise InvestigatorConfigError(
+                "AI_INVESTIGATOR_PROVIDER=openai but OPENAI_API_KEY is not set"
+            )
+        return OpenAIChatModel(model_name(), provider=OpenAIProvider(api_key=api_key))
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
         raise InvestigatorConfigError(
             "GROQ_API_KEY is not set -- the Evidence Investigator has no fallback "
             "model and will not run without it"
         )
-    return GroqModel(model_name(), provider=GroqProvider(api_key=api_key))
+    groq_client = AsyncGroq(api_key=api_key, max_retries=GROQ_MAX_RETRIES)
+    return GroqModel(model_name(), provider=GroqProvider(groq_client=groq_client))
 
 
 def build_agent() -> Agent[InvestigatorDeps, InvestigatorSuggestion]:
@@ -133,13 +172,13 @@ def build_agent() -> Agent[InvestigatorDeps, InvestigatorSuggestion]:
         proposals and decisions."""
         return ai_tools.open_case(ctx.deps.actor, ctx.deps.session, case_id)
 
-    @agent.tool
+    @agent.tool(retries=TOOL_RETRIES)
     def trace_claim(ctx: RunContext[InvestigatorDeps], claim_id: str) -> dict:
         """Trace one claim, line or document identity in both directions:
         its inputs, what uses it, and the documents behind it."""
         return ai_tools.trace_claim(ctx.deps.actor, ctx.deps.session, claim_id)
 
-    @agent.tool
+    @agent.tool(retries=TOOL_RETRIES)
     def read_evidence(
         ctx: RunContext[InvestigatorDeps],
         document_id: str | None = None,

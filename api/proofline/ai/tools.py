@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import re
 
+from fastapi import HTTPException
+from pydantic_ai import ModelRetry
 from sqlalchemy.orm import Session
 
 from proofline.packet import Packet, load_packet
@@ -41,12 +43,18 @@ def trace_claim(
     dependents, a document id traces which lines use it, and an asset
     claim traces every line that cites it. Calls `routes/trace.py`'s own
     `get_trace_line`/`get_trace_document` directly -- never a second
-    tracing implementation."""
+    tracing implementation.
+
+    Every "that id doesn't resolve" case raises `ModelRetry`, not a plain
+    exception: the model guessed an id wrong, which it can recover from by
+    guessing again (e.g. after `open_case` or `find_related_documents`),
+    rather than the whole investigation crashing on one bad argument.
+    """
     packet = load_packet()
     try:
         resolved = resolve(claim_id, packet, version)
     except UnresolvedReferenceError as exc:
-        raise ValueError(
+        raise ModelRetry(
             f"{claim_id!r} is not a traceable claim, line or document id: {exc}"
         ) from None
 
@@ -62,28 +70,30 @@ def trace_claim(
             if claim_id in line.sources
         ]
         if not lines:
-            raise ValueError(
+            raise ModelRetry(
                 f"{claim_id!r} is not used by any line in return version {version}"
             )
         return {"asset_id": claim_id, "lines": lines}
-    raise ValueError(
+    raise ModelRetry(
         f"{claim_id!r} resolves to a {resolved.kind}, which trace_claim doesn't "
         "trace directly -- try read_evidence for its underlying document instead"
     )
 
 
 def _document_id_for_claim(packet: Packet, claim_id: str) -> str:
+    """Raises `ModelRetry` for the same reason `trace_claim` does -- see
+    there."""
     if _DOCUMENT_ID_RE.match(claim_id):
         return claim_id
     try:
         resolved = resolve(claim_id, packet)
     except UnresolvedReferenceError as exc:
-        raise ValueError(f"can't find a document behind {claim_id!r}: {exc}") from None
+        raise ModelRetry(f"can't find a document behind {claim_id!r}: {exc}") from None
     if resolved.kind == "extracted_value":
         return resolved.value.document_id
     if resolved.kind == "document":
         return claim_id
-    raise ValueError(
+    raise ModelRetry(
         f"{claim_id!r} resolves to a {resolved.kind}, not a single document -- "
         "try trace_claim first to find the document(s) behind it"
     )
@@ -99,16 +109,27 @@ def read_evidence(
     """A document's own metadata and page text, masked exactly as
     `redact_for_actor` masks it for an uncleared staff actor -- never raw
     packet content. Looks up by document id directly, or resolves a claim/
-    evidence ref to the document behind it first."""
+    evidence ref to the document behind it first.
+
+    A document id that doesn't exist (`get_document_detail`/
+    `get_document_page` raising their own 404) is the same "bad argument,
+    try again" case `trace_claim` handles -- raises `ModelRetry`, not the
+    raw `HTTPException` those routes raise for a real HTTP request.
+    """
     if document_id is None and claim_id is None:
         raise ValueError("read_evidence needs either document_id or claim_id")
     if document_id is None:
         document_id = _document_id_for_claim(load_packet(), claim_id)  # type: ignore[arg-type]
-    detail = get_document_detail(document_id, actor=actor, session=session)
-    pages = [
-        get_document_page(document_id, page_number, actor=actor, session=session)
-        for page_number in detail["pages"]
-    ]
+    try:
+        detail = get_document_detail(document_id, actor=actor, session=session)
+        pages = [
+            get_document_page(document_id, page_number, actor=actor, session=session)
+            for page_number in detail["pages"]
+        ]
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            raise ModelRetry(f"{document_id!r}: {exc.detail}") from None
+        raise
     return {**detail, "page_content": pages}
 
 

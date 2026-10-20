@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from proofline.ai import tools as ai_tools
 from proofline.security.actors import AI_ASSISTANT_ID, Actor
+from pydantic_ai import ModelRetry
 from sqlalchemy.orm import Session
 
 AI_ACTOR = Actor(
@@ -36,7 +37,10 @@ def test_trace_claim_on_a_document_id(client: TestClient, db_session: Session) -
 def test_trace_claim_on_an_unresolvable_claim_raises(
     client: TestClient, db_session: Session
 ) -> None:
-    with pytest.raises(ValueError, match="not a traceable claim"):
+    # ModelRetry, not a plain ValueError: a bad id from the model is
+    # recoverable (the agent feeds the message back as a retry prompt),
+    # not a reason to crash the whole investigation.
+    with pytest.raises(ModelRetry, match="not a traceable claim"):
         ai_tools.trace_claim(AI_ACTOR, db_session, "no-such-claim-at-all")
 
 
@@ -67,6 +71,20 @@ def test_read_evidence_needs_a_document_or_claim_id(
 ) -> None:
     with pytest.raises(ValueError, match="needs either"):
         ai_tools.read_evidence(AI_ACTOR, db_session)
+
+
+def test_read_evidence_with_a_nonexistent_document_id_raises_model_retry(
+    client: TestClient, db_session: Session
+) -> None:
+    with pytest.raises(ModelRetry, match="D999"):
+        ai_tools.read_evidence(AI_ACTOR, db_session, document_id="D999")
+
+
+def test_read_evidence_with_an_unresolvable_claim_id_raises_model_retry(
+    client: TestClient, db_session: Session
+) -> None:
+    with pytest.raises(ModelRetry, match="can't find a document"):
+        ai_tools.read_evidence(AI_ACTOR, db_session, claim_id="no-such-claim-at-all")
 
 
 def test_find_related_documents_exact_id(
