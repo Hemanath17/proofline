@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from proofline.actions.service import perform
+from proofline.ai.suggestions import list_case_suggestions
 from proofline.analysis.changes import (
     case_change_summary,
     cases_needing_actor,
@@ -184,6 +185,9 @@ def get_case_detail(
         **_case_row(session, actor, case),
         "proposals": [p.to_dict() for p in proposals],
         "decisions": [d.to_dict() for d in decisions],
+        # Step 10: AI-suggested, shown separately from the case's own
+        # verified proposals/decisions above -- no authority of its own.
+        "ai_suggestions": list_case_suggestions(session, case_id),
     }
     return redact_for_actor(actor, packet, body)
 

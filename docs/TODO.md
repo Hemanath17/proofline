@@ -298,6 +298,42 @@ data that already exists.
 - [ ] Update `docs/AI_USAGE.md`
 - [ ] `/deep-test`, then `/simulate` covering the client-workspace leak scan specifically -- `/simulate` needs the user to type it themselves (the skill refuses model invocation, same as Steps 7-8)
 
+## Step 10: the AI layer
+
+### Part 0: Step 9 fix
+- [x] `routes/household.py`, `routes/return_info.py`: `require_non_client` instead of a bare `get_current_actor`
+- [x] `web/components/AppShell.tsx`: skip the `/api/return` fetch for the client role (it's now staff-surface)
+- [x] Regression tests: `test_household_and_return_are_staff_surface_not_client` (`test_routes.py`), extended `_STAFF_SURFACE_GET_ROUTES` leak-scan sweep
+
+### Part 1: the Evidence Investigator
+- [x] Dependencies: `pydantic-ai-slim[groq]==1.30.1`, `mcp==1.30.0`, `deepeval==4.3.1`, `langfuse==4.15.6` (plus pinned `sse-starlette`/`opentelemetry-*` to keep them compatible with the existing `fastapi==0.119.1`/`pydantic==2.11.9` pins -- see DECISIONS.md)
+- [x] `proofline/ai/tools.py`: `trace_claim`, `open_case`, `read_evidence`, `find_related_documents` -- thin wrappers over the existing route functions
+- [x] `proofline/ai/schema.py`: `InvestigatorSuggestion`
+- [x] `proofline/ai/investigator.py`: the Pydantic AI agent, Groq model, usage limits, deps, `AI_INVESTIGATOR_ENABLED`
+- [x] `proofline/ai/validator.py`: deterministic citation/number/role-transition validation
+- [x] `proofline/ai/events.py`/`suggestions.py`: `ai_suggestion_recorded` / `ai_suggestion_reviewed` events (no migration needed)
+- [x] `POST /api/cases/{case_id}/investigate`, `POST /api/cases/{case_id}/suggestions/{id}/review`, suggestions surfaced on `GET /api/cases/{case_id}` (`ai_suggestions`)
+- [x] New `trigger_investigation`/`review_ai_suggestion` staff-only permissions; negative permission tests for the `ai_assistant` role across every write action in `permissions.py`
+
+### Part 2: MCP server
+- [x] `proofline/ai/mcp_server.py` exposing the same four tools, same role/masking
+- [x] In-process test driving it with the SDK's own memory transport (`test_ai_mcp_server.py`)
+
+### Part 3: Langfuse tracing
+- [x] `proofline/ai/tracing.py`: wraps the investigator's run; no-ops cleanly with no keys set or on any Langfuse failure; redacts through `redact_for_actor`
+
+### Part 4: golden set, baseline, DeepEval gate
+- [x] `api/eval/golden_cases.py` from ERRORS.md E1-E4 plus two of E5/E9 (digital asset lot, handwritten receipt), with a real distractor (D63 vs D64) -- sanity-checked against the real packet and validator in `test_ai_golden_cases_sanity.py` (24 passed, no model needed)
+- [x] Baseline recall for the deterministic checks against the golden set (`test_baseline_recall_on_golden_set`, passes with no key: checks catch E1-E4, catch neither E5 nor E9)
+- [x] Hard-gate test, judge calibration (10 real hand-labeled cases), judge metrics (Faithfulness + "new-hire usefulness" GEval via a Groq-backed judge) all built in `api/eval/test_investigator_eval.py` -- **could not be executed this session, no GROQ_API_KEY available** (confirmed: skip cleanly with reason "GROQ_API_KEY not set", 1 passed / 14 skipped, no hang)
+- [x] Ship decision: `AI_INVESTIGATOR_ENABLED` defaults `false`; stays `false` -- not because it failed, but because it was never run. See docs/DECISIONS.md
+- [x] All of Part 4 marked `eval`, skipping cleanly with no `GROQ_API_KEY`/`LANGFUSE_*`
+
+### Tests
+- [x] `pytest api -q -m "not eval"` (run from the repo root): 701 passed, 13 skipped, 15 deselected (the eval suite)
+- [x] `pytest api/eval`: 1 passed, 14 skipped (all with an explicit "GROQ_API_KEY not set" reason)
+- [x] Update `docs/AI_USAGE.md`
+
 ## Questions still open
 - Does the packet go into the public repo, or load from Vercel Blob?
 - Step 5 will need a way to read a review note's actual text back (body currently lives only in its `review_note_added`/`review_note_responded` events, never on the `review_notes` current-state row) -- flagged by the reviewer agent, not a Step 4 defect since there's no screen yet to show it on.

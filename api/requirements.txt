@@ -13,7 +13,12 @@ python-dotenv==1.2.1
 pytest==8.3.2
 ruff==0.17.1
 
-# Added in plan step 10 only, after we agree to it:
-# pydantic-ai
-# deepeval
-# langfuse
+# Step 10: the AI layer. Pinned below (not their own latest) to stay
+# compatible with fastapi/starlette/pydantic above -- see docs/DECISIONS.md.
+pydantic-ai-slim[groq]==1.30.1
+mcp==1.30.0
+deepeval==4.3.1
+langfuse==4.15.6
+sse-starlette==2.4.1
+opentelemetry-sdk==1.43.0
+opentelemetry-exporter-otlp-proto-http==1.43.0

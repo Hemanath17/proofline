@@ -34,6 +34,32 @@ def test_household_masks_ssn_for_marcus_but_not_for_daniel(client: TestClient) -
     assert "*" not in unmasked["people"][0]["ssn"]
 
 
+def test_household_and_return_are_staff_surface_not_client(
+    client: TestClient,
+) -> None:
+    """Step 10 Part 0: `GET /api/household` and `GET /api/return` were
+    missed by Step 9's `require_non_client` retrofit -- a client actor got
+    a clean 200 of the full household (every member's name, DOB,
+    occupation, phone, email and dependent details, only SSNs/IP-PINs
+    masked), contradicting Step 9's own claim that every staff-surface
+    route blocks the client role. Both now use `require_non_client`, same
+    as every other staff-surface route."""
+    household_response = client.get("/api/household", headers=_headers(CLIENT))
+    assert household_response.status_code == 403
+    assert "client workspace" in household_response.json()["detail"]
+
+    return_response = client.get("/api/return", headers=_headers(CLIENT))
+    assert return_response.status_code == 403
+    assert "client workspace" in return_response.json()["detail"]
+
+    # Staff and the AI assistant are unaffected by the same guard.
+    for actor_id in (DANIEL, "ai-assistant"):
+        assert (
+            client.get("/api/household", headers=_headers(actor_id)).status_code == 200
+        )
+        assert client.get("/api/return", headers=_headers(actor_id)).status_code == 200
+
+
 def test_add_review_note_as_preparer_returns_403_naming_the_rule(
     client: TestClient,
 ) -> None:

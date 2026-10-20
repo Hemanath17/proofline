@@ -27,7 +27,14 @@ STAFF_SURFACE_UNCLEARED_ACTOR_IDS = [
 # (docs/DECISIONS.md) -- used by `test_staff_surface_routes_blocked_for_client`
 # below to prove the other half of that guarantee: a client gets a clean
 # 403, never a 200 of any kind, on all of them.
+#
+# Step 10 Part 0: /api/household and /api/return were missed by Step 9's
+# retrofit (they still took a bare `get_current_actor`) -- fixed here, so
+# they're added to this list rather than kept in the older
+# UNCLEARED_ACTOR_IDS "sees it, but masked" lists above.
 _STAFF_SURFACE_GET_ROUTES = [
+    "/api/household",
+    "/api/return",
     "/api/documents",
     "/api/documents/D01",
     "/api/documents/D01/pages/1",
@@ -60,11 +67,22 @@ def _assert_no_leak(text: str, variants: set[str], where: str) -> None:
 
 
 def test_household_endpoint_never_leaks(client: TestClient) -> None:
+    # Step 10 Part 0: /api/household is staff-surface (`require_non_client`)
+    # like every other route here, not "sees it, but masked" -- a client
+    # is covered instead by `test_staff_surface_routes_blocked_for_client`.
     variants = _all_variants()
-    for actor_id in UNCLEARED_ACTOR_IDS:
+    for actor_id in STAFF_SURFACE_UNCLEARED_ACTOR_IDS:
         response = client.get("/api/household", headers={"X-Proofline-Actor": actor_id})
         assert response.status_code == 200
         _assert_no_leak(response.text, variants, f"GET /api/household as {actor_id}")
+
+
+def test_return_info_endpoint_never_leaks(client: TestClient) -> None:
+    variants = _all_variants()
+    for actor_id in STAFF_SURFACE_UNCLEARED_ACTOR_IDS:
+        response = client.get("/api/return", headers={"X-Proofline-Actor": actor_id})
+        assert response.status_code == 200
+        _assert_no_leak(response.text, variants, f"GET /api/return as {actor_id}")
 
 
 def test_documents_list_never_leaks(client: TestClient) -> None:

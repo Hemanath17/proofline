@@ -10,14 +10,14 @@ from fastapi import APIRouter, Depends
 
 from proofline.packet import load_packet
 from proofline.security.actors import Actor
-from proofline.security.dependencies import get_current_actor
+from proofline.security.dependencies import require_non_client
 from proofline.security.redact import redact_for_actor
 
 router = APIRouter()
 
 
 @router.get("/return")
-def get_return_info(actor: Actor = Depends(get_current_actor)) -> dict:
+def get_return_info(actor: Actor = Depends(require_non_client)) -> dict:
     packet = load_packet()
     current = packet.return_versions[-1]
     taxpayer_names = [

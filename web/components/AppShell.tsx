@@ -34,9 +34,10 @@ type ReturnInfo = {
   engine_version: string;
 };
 
-function useReturnInfo(): ReturnInfo | null {
+function useReturnInfo(skip: boolean): ReturnInfo | null {
   const [info, setInfo] = useState<ReturnInfo | null>(null);
   useEffect(() => {
+    if (skip) return;
     let cancelled = false;
     apiFetch<ReturnInfo>("/api/return")
       .then((body) => {
@@ -48,16 +49,19 @@ function useReturnInfo(): ReturnInfo | null {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [skip]);
   return info;
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const info = useReturnInfo();
   const { actor } = useCurrentActor();
   const isClient = actor?.role === "client";
+  // /api/return is a staff-surface route (require_non_client, Step 10 Part
+  // 0) -- the client workspace never calls it, same as every other
+  // staff-surface endpoint.
+  const info = useReturnInfo(isClient);
   const railItems = isClient ? CLIENT_RAIL_ITEMS : STAFF_RAIL_ITEMS;
 
   return (

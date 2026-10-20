@@ -271,3 +271,59 @@ def test_step9_log_only_actions_denied_for_client_and_ai_assistant(
     with pytest.raises(PermissionDenied) as exc_info:
         check_permission(actor, action)  # type: ignore[arg-type]
     assert exc_info.value.rule == "staff only"
+
+
+# Step 10, Part 1 point 7: "the AI can never..." is supposed to come from
+# the role and the action service, never the prompt (CLAUDE.md) -- this
+# proves it explicitly, for `ai_assistant`, against EVERY write action in
+# `permissions.py`'s `ActionName`, not just the ones a prior step happened
+# to test. Every one of these is already denied by the existing role
+# checks above (no gap found -- see docs/DECISIONS.md); `sign_off` and
+# `resolve_review_note` need extra kwargs and are already covered for
+# `ai_assistant` further up this file, so they're not repeated here.
+_EVERY_OTHER_WRITE_ACTION_AND_ITS_RULE = [
+    ("open_case_by_hand", "staff only: a case opened by hand needs a staff member"),
+    ("sync_cases", "staff only"),
+    ("pick_up", "preparer only"),
+    ("ask_client", "preparer only"),
+    (
+        "client_answered",
+        "only the client or the system may record an answer",
+    ),
+    ("submit_proposal", "preparer only"),
+    ("return", "only a reviewer, partner or quality reviewer may decide on a proposal"),
+    (
+        "approve",
+        "only a reviewer, partner or quality reviewer may decide on a proposal",
+    ),
+    ("partner_approve", "partner only"),
+    ("partner_return", "partner only"),
+    ("reopen", "only the system or a reviewer may reopen a case"),
+    ("reassign", "only a preparer, reviewer or admin may reassign a case"),
+    ("confirm_disposition", "only the preparer may confirm a document disposition"),
+]
+
+
+@pytest.mark.parametrize("action, rule", _EVERY_OTHER_WRITE_ACTION_AND_ITS_RULE)
+def test_ai_assistant_denied_every_other_write_action(action: str, rule: str) -> None:
+    with pytest.raises(PermissionDenied) as exc_info:
+        check_permission(AI_ASSISTANT, action)  # type: ignore[arg-type]
+    assert exc_info.value.rule == rule
+
+
+@pytest.mark.parametrize("action", ["trigger_investigation", "review_ai_suggestion"])
+@pytest.mark.parametrize(
+    "actor", [PREPARER, REVIEWER, PARTNER, MARCUS, FIRM_ADMIN, QUALITY_REVIEWER]
+)
+def test_investigator_actions_allowed_for_any_staff(actor: Actor, action: str) -> None:
+    check_permission(actor, action)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("action", ["trigger_investigation", "review_ai_suggestion"])
+@pytest.mark.parametrize("actor", [CLIENT, AI_ASSISTANT])
+def test_investigator_actions_denied_for_client_and_ai_assistant(
+    actor: Actor, action: str
+) -> None:
+    with pytest.raises(PermissionDenied) as exc_info:
+        check_permission(actor, action)  # type: ignore[arg-type]
+    assert exc_info.value.rule == "staff only"

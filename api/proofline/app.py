@@ -11,6 +11,7 @@ from proofline.db.repository import EntityNotFound, StaleRevision
 from proofline.packet import load_packet
 from proofline.routes import (
     actors,
+    ai,
     areas,
     cases,
     checks,
@@ -48,6 +49,7 @@ app.include_router(review_notes.router, prefix="/api")
 app.include_router(reveal.router, prefix="/api")
 app.include_router(actors.router, prefix="/api")
 app.include_router(cases.router, prefix="/api")
+app.include_router(ai.router, prefix="/api")
 app.include_router(return_info.router, prefix="/api")
 app.include_router(areas.router, prefix="/api")
 app.include_router(readiness.router, prefix="/api")

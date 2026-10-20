@@ -42,6 +42,12 @@ ActionName = Literal[
     "log_time",
     "record_judgment_election",
     "confirm_outside_filing",
+    # Step 10: the Evidence Investigator -- staff only, same as every other
+    # write here; the AI never triggers an investigation of itself, and
+    # never reviews its own suggestion (CLAUDE.md: "the AI... can read and
+    # propose" -- triggering and reviewing are both staff actions)
+    "trigger_investigation",
+    "review_ai_suggestion",
 ]
 
 _REVIEWER_ROLES = {"reviewer", "partner", "quality_reviewer"}
@@ -169,6 +175,8 @@ def check_permission(
         "log_time",
         "record_judgment_election",
         "confirm_outside_filing",
+        "trigger_investigation",
+        "review_ai_suggestion",
     ):
         if not actor.is_staff:
             raise PermissionDenied("staff only")
