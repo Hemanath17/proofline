@@ -6,16 +6,26 @@ import { useCurrentActor } from "@/lib/session";
 import { useCaseDetail } from "@/lib/useCaseDetail";
 import { availableActions, type CaseAction } from "@/lib/caseActions";
 import { CaseStatusPill, severityLabel, TaxEffectDisplay } from "@/components/Badges";
+import { openEvidencePreview } from "@/lib/traceDrawer";
 import type { ActivityEvent, CaseProposal } from "@/lib/types";
 import styles from "./CaseDetailPanel.module.css";
 
-const STATUS_STEPS = [
-  { key: "open", label: "Open" },
-  { key: "investigating", label: "Investigating" },
-  { key: "in_review", label: "In review" },
-  { key: "awaiting_partner", label: "Awaiting partner" },
-  { key: "resolved", label: "Resolved" },
-];
+/** What happens next from each C1 status (docs/CONTRACTS.md C1) --
+ * replaces a linear stepper, which would misrepresent a state machine
+ * that moves backward (`return`, `partner_return`, `reopen`) and
+ * sideways (`ask_client`/`client_answered`), and that can exit without
+ * ever reaching `resolved` (`clear`). See docs/DECISIONS.md. */
+const STATUS_NEXT_ACTION: Record<string, string> = {
+  open: "Next: a preparer picks this up to start investigating.",
+  investigating: "Next: the preparer asks the client, or submits a proposal for review.",
+  waiting_on_client:
+    "Waiting on the client's answer. Recording it returns this case to investigating.",
+  in_review:
+    "Next: a reviewer approves (to Resolved, or Awaiting partner if the tax effect is over 1,000) or returns it to investigating.",
+  awaiting_partner: "Next: the partner approves (to Resolved) or returns it to investigating.",
+  resolved: "Resolved. A reviewer or the system can reopen it if something changes.",
+  cleared: "Cleared -- the finding stopped firing.",
+};
 
 const CLIENT_EVIDENCE_PREFIXES = ["qa-", "msg-", "call-"];
 
@@ -69,16 +79,27 @@ const ACTION_ENDPOINT: Record<CaseAction, string> = {
   reassign: "reassign",
 };
 
-function ProposalForm({ caseId, revision, onDone }: { caseId: string; revision: number; onDone: () => void }) {
+function ProposalForm({
+  caseId,
+  revision,
+  availableEvidence,
+  onDone,
+}: {
+  caseId: string;
+  revision: number;
+  availableEvidence: string[];
+  onDone: () => void;
+}) {
   const [resolutionType, setResolutionType] = useState("mark_legitimate");
   const [fields, setFields] = useState<Record<string, string>>({});
-  const [evidenceRefs, setEvidenceRefs] = useState("");
+  const [selectedEvidence, setSelectedEvidence] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const requiredFields = RESOLUTION_FIELDS[resolutionType] ?? [];
   const missing = requiredFields.some((field) => !fields[field.key]?.trim());
-  const needsEvidence = resolutionType !== "record_judgment" && evidenceRefs.trim() === "";
+  const evidenceRefs = availableEvidence.filter((ref) => selectedEvidence[ref]);
+  const needsEvidence = resolutionType !== "record_judgment" && evidenceRefs.length === 0;
   const disabled = missing || needsEvidence;
   const disabledReason = missing
     ? "fill in every field for this resolution type"
@@ -94,10 +115,7 @@ function ProposalForm({ caseId, revision, onDone }: { caseId: string; revision: 
         expected_revision: revision,
         resolution_type: resolutionType,
         fields,
-        evidence_refs: evidenceRefs
-          .split(",")
-          .map((ref) => ref.trim())
-          .filter(Boolean),
+        evidence_refs: evidenceRefs,
       });
       onDone();
     } catch (err) {
@@ -133,10 +151,33 @@ function ProposalForm({ caseId, revision, onDone }: { caseId: string; revision: 
           />
         </label>
       ))}
-      <label className={styles.field}>
-        <span>Evidence refs (comma-separated)</span>
-        <input value={evidenceRefs} onChange={(event) => setEvidenceRefs(event.target.value)} />
-      </label>
+      <fieldset className={styles.evidencePicker}>
+        <legend>Evidence (from this case)</legend>
+        {availableEvidence.length === 0 && (
+          <p className={styles.small}>No evidence attached to this case yet.</p>
+        )}
+        {availableEvidence.map((ref) => (
+          <div key={ref} className={styles.evidenceOption}>
+            <label className={styles.evidenceOptionLabel}>
+              <input
+                type="checkbox"
+                checked={Boolean(selectedEvidence[ref])}
+                onChange={(event) =>
+                  setSelectedEvidence((prev) => ({ ...prev, [ref]: event.target.checked }))
+                }
+              />
+              <span className="mono">{ref}</span>
+            </label>
+            <button
+              type="button"
+              className={styles.previewLink}
+              onClick={() => openEvidencePreview(ref)}
+            >
+              Preview
+            </button>
+          </div>
+        ))}
+      </fieldset>
       {error && <p className={styles.error}>{error}</p>}
       <button
         type="button"
@@ -267,11 +308,20 @@ export function CaseDetailPanel({ caseId }: { caseId: string }) {
   const { actor } = useCurrentActor();
   const { caseDetail, loading, error, refetch } = useCaseDetail(caseId);
 
-  if (loading && !caseDetail) return <p className={styles.loading}>Loading...</p>;
-  if (error) return <p className={styles.error}>{error}</p>;
+  if (loading && !caseDetail) return <p className={styles.loading}>Loading the case...</p>;
+  if (error) {
+    return (
+      <div className={styles.errorState}>
+        <p className={styles.error}>{error}</p>
+        <button type="button" className={styles.retryButton} onClick={refetch}>
+          Retry
+        </button>
+      </div>
+    );
+  }
   if (!caseDetail) return null;
 
-  const currentStepIndex = STATUS_STEPS.findIndex((step) => step.key === caseDetail.status);
+  const nextAction = STATUS_NEXT_ACTION[caseDetail.status];
   const actions = availableActions(actor, caseDetail);
   const decisionActions = actions.filter((a) => a.action !== "submit_proposal");
   const canSubmitProposal = actions.some((a) => a.action === "submit_proposal" && a.enabled);
@@ -294,20 +344,7 @@ export function CaseDetailPanel({ caseId }: { caseId: string }) {
           )}
           {caseDetail.assignee_id && <span className={styles.metaItem}>Assigned: {caseDetail.assignee_id}</span>}
         </div>
-        {currentStepIndex >= 0 && (
-          <ol className={styles.stepper}>
-            {STATUS_STEPS.map((step, index) => (
-              <li
-                key={step.key}
-                className={`${styles.step} ${index === currentStepIndex ? styles.stepActive : ""} ${
-                  index < currentStepIndex ? styles.stepDone : ""
-                }`}
-              >
-                {step.label}
-              </li>
-            ))}
-          </ol>
-        )}
+        {nextAction && <p className={styles.nextAction}>{nextAction}</p>}
         {caseDetail.changed_since_last_seen && caseDetail.change_summary && (
           <p className={styles.changeBanner}>Changed since you last looked: {caseDetail.change_summary}</p>
         )}
@@ -329,11 +366,17 @@ export function CaseDetailPanel({ caseId }: { caseId: string }) {
         <h3 className={styles.sectionTitle}>Evidence</h3>
         <ul className={styles.evidenceList}>
           {caseDetail.evidence_refs.map((ref) => (
-            <li key={ref} className={styles.evidenceCard}>
-              <span className="mono">{ref}</span>
-              {isClientEvidence(ref) && (
-                <span className={styles.clientNote}>Client said · client statement, not verification</span>
-              )}
+            <li key={ref}>
+              <button
+                type="button"
+                className={styles.evidenceCard}
+                onClick={() => openEvidencePreview(ref)}
+              >
+                <span className="mono">{ref}</span>
+                {isClientEvidence(ref) && (
+                  <span className={styles.clientNote}>Client said · client statement, not verification</span>
+                )}
+              </button>
             </li>
           ))}
           {caseDetail.evidence_refs.length === 0 && <li className={styles.small}>No evidence yet.</li>}
@@ -353,7 +396,12 @@ export function CaseDetailPanel({ caseId }: { caseId: string }) {
           </ol>
         )}
         {canSubmitProposal && (
-          <ProposalForm caseId={caseDetail.case_id} revision={caseDetail.revision} onDone={refetch} />
+          <ProposalForm
+            caseId={caseDetail.case_id}
+            revision={caseDetail.revision}
+            availableEvidence={caseDetail.evidence_refs}
+            onDone={refetch}
+          />
         )}
       </section>
 

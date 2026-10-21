@@ -5,27 +5,45 @@ import { useEffect, useState } from "react";
 const OPEN_EVENT = "proofline:open-trace-drawer";
 const CLOSE_EVENT = "proofline:close-trace-drawer";
 
+/** What the one Trace drawer instance is currently showing: a line's full
+ * trace (S4), or a single evidence reference's preview (S2's evidence
+ * cards and the proposal's evidence picker). One drawer, one shell, two
+ * content kinds -- not two drawers. */
+export type DrawerTarget =
+  | { kind: "line"; lineKey: string }
+  | { kind: "evidence"; ref: string };
+
+export function openTrace(target: DrawerTarget): void {
+  window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: target }));
+}
+
+/** Any number anywhere opens this same drawer (docs/UX.md Layout: "Any
+ * number anywhere is clickable and opens the Trace drawer from the right
+ * without leaving the page"). */
 export function openTraceDrawer(lineKey: string): void {
-  window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: lineKey }));
+  openTrace({ kind: "line", lineKey });
+}
+
+/** Any evidence reference anywhere opens the same drawer, showing a
+ * preview instead of a full line trace (docs/UX.md S2 "a click opens the
+ * Trace drawer"). */
+export function openEvidencePreview(ref: string): void {
+  openTrace({ kind: "evidence", ref });
 }
 
 export function closeTraceDrawer(): void {
   window.dispatchEvent(new Event(CLOSE_EVENT));
 }
 
-/** Any number anywhere opens this same drawer (docs/UX.md Layout: "Any
- * number anywhere is clickable and opens the Trace drawer from the right
- * without leaving the page"). One global piece of state, read by the one
- * `TraceDrawer` instance `AppShell` renders. */
-export function useTraceDrawerLineKey(): string | null {
-  const [lineKey, setLineKey] = useState<string | null>(null);
+export function useTraceDrawerTarget(): DrawerTarget | null {
+  const [target, setTarget] = useState<DrawerTarget | null>(null);
 
   useEffect(() => {
     function onOpen(event: Event) {
-      setLineKey((event as CustomEvent<string>).detail);
+      setTarget((event as CustomEvent<DrawerTarget>).detail);
     }
     function onClose() {
-      setLineKey(null);
+      setTarget(null);
     }
     window.addEventListener(OPEN_EVENT, onOpen);
     window.addEventListener(CLOSE_EVENT, onClose);
@@ -35,5 +53,5 @@ export function useTraceDrawerLineKey(): string | null {
     };
   }, []);
 
-  return lineKey;
+  return target;
 }

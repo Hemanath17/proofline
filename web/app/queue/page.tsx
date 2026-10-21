@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch, apiPost, ApiError } from "@/lib/api-client";
 import { CaseStatusPill, severityLabel, TaxEffectDisplay } from "@/components/Badges";
 import { CaseDetailPanel } from "@/components/CaseDetailPanel";
+import { isTypingTarget, shortcutsEnabled } from "@/components/KeyboardLayer";
+import { sumTaxEffectFederal } from "@/lib/queueTotals";
 import type { CaseRow, QueueResponse } from "@/lib/types";
 import styles from "./page.module.css";
 
@@ -15,7 +17,7 @@ const TABS: Array<{ key: string; label: string }> = [
   { key: "resolved", label: "Resolved" },
 ];
 
-type VisibleGroup = { severity: string; totalFederal: number; rows: CaseRow[] };
+type VisibleGroup = { severity: string; totalFederal: number; totalCount: number; rows: CaseRow[] };
 
 function age(createdAt: string): string {
   const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86_400_000);
@@ -39,32 +41,44 @@ function QueueView() {
   const selectedCaseId = searchParams.get("case");
 
   const [queue, setQueue] = useState<QueueResponse | null>(null);
+  const [queueLoading, setQueueLoading] = useState(true);
+  const [queueError, setQueueError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const filterInputRef = useRef<HTMLInputElement>(null);
 
   function load() {
-    apiFetch<QueueResponse>(`/api/cases?tab=${tab}`).then(setQueue);
+    setQueueLoading(true);
+    setQueueError(null);
+    apiFetch<QueueResponse>(`/api/cases?tab=${tab}`)
+      .then((body) => setQueue(body))
+      .catch((err) => setQueueError(err instanceof ApiError ? err.detail : "couldn't load the queue"))
+      .finally(() => setQueueLoading(false));
   }
 
   useEffect(load, [tab]);
 
+  const needle = filter.trim().toLowerCase();
+
   const visibleGroups: VisibleGroup[] = useMemo(() => {
     if (!queue) return [];
-    const needle = filter.trim().toLowerCase();
     return queue.groups
-      .map((group) => ({
-        severity: group.severity,
-        totalFederal: Number(group.total_tax_effect.federal),
-        rows: needle
+      .map((group) => {
+        const rows = needle
           ? group.cases.filter((row) => (row.title ?? "").toLowerCase().includes(needle))
-          : group.cases,
-      }))
+          : group.cases;
+        // Recomputed from the rows actually shown, not the server's
+        // unfiltered group total -- otherwise the total silently stops
+        // matching the list once a search filter narrows it.
+        const totalFederal = sumTaxEffectFederal(rows);
+        return { severity: group.severity, totalFederal, totalCount: group.cases.length, rows };
+      })
       .filter((group) => group.rows.length > 0);
-  }, [queue, filter]);
+  }, [queue, needle]);
 
   const flatRows = useMemo(() => visibleGroups.flatMap((group) => group.rows), [visibleGroups]);
+  const queueHasCases = (queue?.groups.length ?? 0) > 0;
 
   function setTab(nextTab: string) {
     router.push(`/queue?tab=${nextTab}`);
@@ -79,8 +93,11 @@ function QueueView() {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (document.activeElement === filterInputRef.current) {
-        if (event.key === "Escape") filterInputRef.current?.blur();
+      if (!shortcutsEnabled()) return;
+      if (isTypingTarget(event.target)) {
+        if (event.target === filterInputRef.current && event.key === "Escape") {
+          filterInputRef.current?.blur();
+        }
         return;
       }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -152,21 +169,37 @@ function QueueView() {
           </div>
         </div>
 
-        {!queue && <p className={styles.loadingState}>Loading...</p>}
+        {queueLoading && !queue && <p className={styles.loadingState}>Loading the queue...</p>}
 
-        {queue && visibleGroups.length === 0 && (
+        {queueError && (
+          <div className={styles.errorState}>
+            <p className={styles.error}>{queueError}</p>
+            <button type="button" className={styles.retryButton} onClick={load}>
+              Retry
+            </button>
+          </div>
+        )}
+
+        {!queueLoading && !queueError && queue && visibleGroups.length === 0 && (
           <p className={styles.emptyState}>
-            Nothing needs you.{" "}
-            {waitingOnClientCount > 0
-              ? `${waitingOnClientCount} case${waitingOnClientCount === 1 ? "" : "s"} are waiting on the client.`
-              : ""}
+            {needle ? (
+              `No cases match "${filter.trim()}".`
+            ) : (
+              <>
+                Nothing needs you.{" "}
+                {waitingOnClientCount > 0
+                  ? `${waitingOnClientCount} case${waitingOnClientCount === 1 ? "" : "s"} are waiting on the client.`
+                  : ""}
+              </>
+            )}
           </p>
         )}
 
         {visibleGroups.map((group) => (
           <section key={group.severity} className={styles.group}>
             <h2 className={styles.groupHeader}>
-              {severityLabel(group.severity)} · {group.rows.length}
+              {severityLabel(group.severity)} ·{" "}
+              {needle ? `${group.rows.length} of ${group.totalCount}` : group.rows.length}
               <span className={styles.groupTotal}>
                 {" "}
                 · total {Math.round(Math.abs(group.totalFederal)).toLocaleString()} federal
@@ -187,17 +220,17 @@ function QueueView() {
                         select(row.case_id);
                       }}
                     >
-                      <span className={styles.unreadSlot}>
-                        {row.changed_since_last_seen && (
-                          <span className={styles.unreadDot} aria-label="Changed" />
-                        )}
-                      </span>
-                      <div className={styles.rowMain}>
+                      <div className={styles.rowTop}>
+                        <span className={styles.unreadSlot}>
+                          {row.changed_since_last_seen && (
+                            <span className={styles.unreadDot} aria-label="Changed" />
+                          )}
+                        </span>
                         <span className={styles.rowTitle}>{row.title}</span>
-                        <span className={styles.rowWhy}>{row.why_it_here}</span>
+                        <CaseStatusPill status={row.status} />
                       </div>
-                      <span className={styles.rowArea}>{row.scope}</span>
-                      <span className={styles.taxEffectSlot}>
+                      <p className={styles.rowWhy}>{row.why_it_here}</p>
+                      <div className={styles.rowMeta}>
                         {row.tax_effect && (
                           <TaxEffectDisplay
                             federal={row.tax_effect.federal}
@@ -206,10 +239,10 @@ function QueueView() {
                             direction={row.tax_effect.direction}
                           />
                         )}
-                      </span>
-                      <CaseStatusPill status={row.status} />
-                      <span className={styles.rowAssignee}>{row.assignee_id ?? "unassigned"}</span>
-                      <span className={styles.rowAge}>{age(row.created_at)}</span>
+                        <span className={styles.rowMetaSecondary}>
+                          {row.scope} · {row.assignee_id ?? "unassigned"} · {age(row.created_at)}
+                        </span>
+                      </div>
                     </button>
                   </li>
                 );
@@ -223,7 +256,9 @@ function QueueView() {
         {selectedCaseId ? (
           <CaseDetailPanel caseId={selectedCaseId} />
         ) : (
-          <p className={styles.detailPlaceholder}>Select a case to see it here.</p>
+          <p className={styles.detailPlaceholder}>
+            {queueHasCases ? "Select a case to see it here." : "Nothing is waiting on you here."}
+          </p>
         )}
       </div>
     </div>

@@ -107,6 +107,49 @@ export type OtherSource = { ref: string; kind: string };
 
 export type ExcludedDocument = { document_id: string; reason: string };
 
+/** `GET /api/trace/evidence?ref=`'s response (proofline/routes/trace.py
+ * `_evidence_preview_dict`) -- a clickable preview for any evidence
+ * reference format docs/PACKET.md names, shown in the Trace drawer. */
+export type EvidencePreview =
+  | {
+      kind: "document_field";
+      ref: string;
+      document_id: string;
+      document_title: string;
+      page: number;
+      field: string;
+      label: string | null;
+      value: unknown;
+      text_as_read: string | null;
+      position: Highlight["position"];
+    }
+  | {
+      kind: "document";
+      ref: string;
+      document_id: string;
+      title: string;
+      document_type: string;
+      issuer: string | null;
+    }
+  | {
+      kind: "document_page";
+      ref: string;
+      document_id: string | null;
+      document_title: string | null;
+      page: number;
+    }
+  | {
+      kind: "questionnaire_item";
+      ref: string;
+      question: string;
+      answer: unknown;
+      answered_by: string | null;
+      answered_at: string | null;
+    }
+  | { kind: "message"; ref: string; from: string; to: string; sent_at: string; text: string }
+  | { kind: "call_note"; ref: string; date: string; participants: string[]; notes: string[] }
+  | { kind: "typed"; ref: string; label: string; value: unknown };
+
 export type Adjustment = {
   id: string;
   claim_key: string;

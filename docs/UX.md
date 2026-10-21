@@ -65,7 +65,12 @@ What a human did (review-state marker, filled icon plus word):
 - Empty state says what "done" means ("Nothing needs you. 3 cases are waiting on the client.").
 
 ## S2 Case detail (Step 5)
-- Header: title, status stepper showing the C1 path (open → investigating → in review → awaiting partner → resolved) with the current step marked, severity, area, tax effect with labels, assignee.
+- Header: title, status pill plus a one-line plain-language "what happens next" from the current
+  status (not a stepper -- C1's transitions include `return`, `partner_return` and `reopen` going
+  backward, `ask_client`/`client_answered` cycling sideways through "waiting on client", and
+  `clear` exiting without ever reaching "resolved", so a fixed left-to-right path would misrepresent
+  the real state machine for at least one of those cases; see docs/DECISIONS.md), severity, area,
+  tax effect with labels, assignee.
 - "Why this is flagged": the check's observed and expected sentences, limitations in smaller text, and the check id and version in mono.
 - Evidence: one card per evidence reference. Document evidence shows a small snippet of the source page with the field highlighted; a click opens the Trace drawer. Client statements carry the "Client said" label and the warning "client statement, not verification". Prior-year and agency references show as typed cards.
 - Proposal: the resolution type (resolve evidence conflict, record judgment, adjust number, mark legitimate), each with exactly the fields C1 names. Submit is disabled with a named reason until the required evidence is attached. Revisions are listed (Revision 1, Revision 2) with what changed between them; a decision always names the revision it applies to.

@@ -19,6 +19,28 @@
   color: var(--blocking);
 }
 
+.errorState {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  align-items: flex-start;
+}
+
+.retryButton {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  min-height: 24px;
+}
+
+.retryButton:hover {
+  background: var(--bg);
+}
+
 .header {
   display: flex;
   flex-direction: column;
@@ -43,31 +65,10 @@
   color: var(--ink-2);
 }
 
-.stepper {
-  display: flex;
-  gap: var(--space-1);
-  list-style: none;
-  margin-top: var(--space-1);
-  flex-wrap: wrap;
-}
-
-.step {
-  font-size: 12px;
+.nextAction {
+  font-size: 13px;
   color: var(--ink-2);
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--bg);
-}
-
-.stepDone {
-  background: var(--verified-tint);
-  color: var(--verified);
-}
-
-.stepActive {
-  background: var(--info-tint);
-  color: var(--info);
-  font-weight: 600;
+  margin-top: var(--space-1);
 }
 
 .changeBanner {
@@ -104,6 +105,7 @@
 }
 
 .evidenceCard {
+  width: 100%;
   border: 1px solid var(--rule);
   background: var(--surface);
   border-radius: 6px;
@@ -111,6 +113,19 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.evidenceCard:hover {
+  background: var(--bg);
+}
+
+.evidenceCard:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .clientNote {
@@ -152,6 +167,47 @@
   border: 1px solid var(--rule);
   border-radius: 6px;
   padding: 6px 8px;
+  min-height: 24px;
+}
+
+.evidencePicker {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: var(--space-2);
+  font-size: 13px;
+}
+
+.evidencePicker legend {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  padding: 0;
+}
+
+.evidenceOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.evidenceOptionLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.previewLink {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
   min-height: 24px;
 }
 

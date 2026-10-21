@@ -334,6 +334,18 @@ data that already exists.
 - [x] `pytest api/eval`: 1 passed, 14 skipped (all with an explicit "GROQ_API_KEY not set" reason)
 - [x] Update `docs/AI_USAGE.md`
 
+## Queue usability refinement (S1/S2) -- not a numbered plan step, a targeted UX pass
+- [x] Batch 0: Vitest + Testing Library added to `web/` (devDependencies only, `test` script)
+- [x] Batch 1: `GET /api/trace/evidence?ref=` in `routes/trace.py`, reusing `resolve()`/`_position_dict`; tests
+- [x] Batch 2: Trace drawer generalized to a `DrawerTarget` union; new `EvidenceContent.tsx`
+- [x] Batch 3: Case Detail evidence refs are clickable; proposal evidence picker replaces free text
+- [x] Batch 4: status stepper replaced with current-status + next-action; `docs/UX.md`/`docs/DECISIONS.md` updated
+- [x] Batch 5: Queue row layout simplified for the split pane
+- [x] Batch 6: loading/error+retry/empty-queue/no-search-results states on Queue and Case Detail
+- [x] Batch 7: keyboard shortcuts respect `isTypingTarget` (incl. SELECT) and `shortcutsEnabled()`
+- [x] Batch 8: group totals recomputed from visible rows, not the unfiltered server total
+- [x] Verification: `tsc`, `vitest`, `pytest api -q -m "not eval"`, Playwright screenshots at 1440/1280/768px -- all pass; live-browser verification of the evidence drawer, proposal picker, error/retry, empty/no-results states and the keyboard fix (see docs/DECISIONS.md)
+
 ## Questions still open
 - Does the packet go into the public repo, or load from Vercel Blob?
 - Step 5 will need a way to read a review note's actual text back (body currently lives only in its `review_note_added`/`review_note_responded` events, never on the `review_notes` current-state row) -- flagged by the reviewer agent, not a Step 4 defect since there's no screen yet to show it on.

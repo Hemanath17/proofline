@@ -97,6 +97,33 @@
   padding: var(--space-3) 0;
 }
 
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
+
+.error {
+  color: var(--blocking);
+  font-size: 13px;
+}
+
+.retryButton {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  min-height: 24px;
+}
+
+.retryButton:hover {
+  background: var(--bg);
+}
+
 .group {
   display: flex;
   flex-direction: column;
@@ -123,10 +150,9 @@
 
 .row {
   width: 100%;
-  display: grid;
-  grid-template-columns: 10px minmax(0, 2fr) auto auto auto auto auto;
-  align-items: center;
-  gap: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: 6px;
@@ -147,10 +173,22 @@
   background: var(--info-tint);
 }
 
+/* Primary: unread dot, title, status -- the first thing a CPA scans
+   (CLAUDE.md task: "Prioritize case title, why it matters, workflow
+   status, and estimated impact"). */
+.rowTop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
 .unreadSlot {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 10px;
+  flex-shrink: 0;
 }
 
 .unreadDot {
@@ -160,18 +198,9 @@
   background: var(--accent);
 }
 
-.taxEffectSlot {
-  display: flex;
-  align-items: center;
-}
-
-.rowMain {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
 .rowTitle {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   font-weight: 500;
   overflow: hidden;
@@ -179,28 +208,33 @@
   white-space: nowrap;
 }
 
+/* Primary: why it's here. */
 .rowWhy {
   font-size: 12px;
   color: var(--ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  margin: 0;
+  padding-left: 18px;
 }
 
-.rowArea {
-  font-size: 12px;
+/* Impact stays legible (primary), scope/assignee/age are demoted to a
+   smaller, lighter cluster -- secondary, but still present and readable,
+   not hidden. */
+.rowMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-left: 18px;
+  flex-wrap: wrap;
+}
+
+.rowMetaSecondary {
+  font-size: 11px;
   color: var(--ink-2);
   text-transform: capitalize;
-}
-
-.rowAssignee {
-  font-size: 12px;
-  color: var(--ink-2);
-}
-
-.rowAge {
-  font-size: 12px;
-  color: var(--ink-2);
 }
 
 .detailPane {

@@ -15,10 +15,14 @@ export function setShortcutsEnabled(enabled: boolean): void {
   window.localStorage.setItem(STORAGE_KEY, String(enabled));
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
+/** True when `target` is a form control or editable element a single-key
+ * shortcut must never intercept (docs/UX.md Keyboard: shortcuts apply
+ * "only when a list or panel has focus", never while typing). Shared by
+ * every keydown listener in the app, not just this one. */
+export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || Boolean(target.isContentEditable);
 }
 
 /** The global part of docs/UX.md's keyboard layer: `G Q` / `G A` / `G D`

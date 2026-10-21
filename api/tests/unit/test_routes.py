@@ -381,6 +381,66 @@ def test_trace_document_unknown_id_returns_404(client: TestClient) -> None:
     assert response.json()["detail"] == "document not found"
 
 
+def test_trace_evidence_extracted_value_returns_a_document_field_card(
+    client: TestClient,
+) -> None:
+    response = client.get(
+        "/api/trace/evidence", params={"ref": "ev-0001"}, headers=_headers(DANIEL)
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["kind"] == "document_field"
+    assert body["document_id"] == "D01"
+    assert body["ref"] == "ev-0001"
+    assert body["field"]
+
+
+def test_trace_evidence_client_statement_kinds(client: TestClient) -> None:
+    for ref, kind, text_field in (
+        ("qa-01", "questionnaire_item", "question"),
+        ("msg-01", "message", "text"),
+        ("call-01", "call_note", "notes"),
+    ):
+        response = client.get(
+            "/api/trace/evidence", params={"ref": ref}, headers=_headers(DANIEL)
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["kind"] == kind
+        assert body[text_field]
+
+
+def test_trace_evidence_typed_reference_renders_as_a_typed_card(
+    client: TestClient,
+) -> None:
+    response = client.get(
+        "/api/trace/evidence",
+        params={"ref": "household:ngozi"},
+        headers=_headers(DANIEL),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["kind"] == "typed"
+    assert body["label"] == "Household fact"
+    assert body["value"]["id"] == "ngozi"
+
+
+def test_trace_evidence_unresolvable_ref_returns_404(client: TestClient) -> None:
+    response = client.get(
+        "/api/trace/evidence",
+        params={"ref": "not-a-real-ref"},
+        headers=_headers(DANIEL),
+    )
+    assert response.status_code == 404
+
+
+def test_trace_evidence_blocked_for_client(client: TestClient) -> None:
+    response = client.get(
+        "/api/trace/evidence", params={"ref": "ev-0001"}, headers=_headers(CLIENT)
+    )
+    assert response.status_code == 403
+
+
 def test_respond_to_unknown_note_returns_404_over_http(client: TestClient) -> None:
     """Exercises the app-level EntityNotFound -> 404 exception handler
     through a real route, not just the service layer directly."""
