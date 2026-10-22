@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { apiFetch } from "@/lib/api-client";
@@ -8,6 +8,7 @@ import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { KeyboardLayer } from "@/components/KeyboardLayer";
 import { CommandMenu } from "@/components/CommandMenu";
 import { TraceDrawer } from "@/components/TraceDrawer";
+import { TourOverlay } from "@/components/Tour/TourOverlay";
 import { useCurrentActor } from "@/lib/session";
 import styles from "./AppShell.module.css";
 
@@ -63,6 +64,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // staff-surface endpoint.
   const info = useReturnInfo(isClient);
   const railItems = isClient ? CLIENT_RAIL_ITEMS : STAFF_RAIL_ITEMS;
+
+  // The landing page (Part A of the tour/landing addition) is a marketing
+  // page for a first-time visitor, not another app screen -- it renders
+  // outside this chrome entirely.
+  if (pathname === "/") return <>{children}</>;
 
   return (
     <div className={styles.shell}>
@@ -128,6 +134,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <KeyboardLayer />
       <CommandMenu />
       <TraceDrawer />
+      {!isClient && (
+        <Suspense fallback={null}>
+          <TourOverlay />
+        </Suspense>
+      )}
     </div>
   );
 }
