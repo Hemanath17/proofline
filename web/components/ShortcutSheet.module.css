@@ -53,3 +53,19 @@
 .close:hover {
   background: var(--bg);
 }
+
+.replayTour {
+  margin-top: var(--space-3);
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 24px;
+  padding: 0;
+  display: block;
+}
+
+.replayTour:hover {
+  text-decoration: underline;
+}

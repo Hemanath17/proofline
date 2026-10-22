@@ -1,0 +1,89 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  pointer-events: none;
+}
+
+.ring {
+  position: fixed;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(28, 34, 48, 0.45);
+  transition: top 0.15s ease, left 0.15s ease, width 0.15s ease, height 0.15s ease;
+  pointer-events: none;
+}
+
+.tooltip {
+  position: fixed;
+  width: 300px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: var(--space-2);
+  box-shadow: 0 8px 32px rgba(28, 34, 48, 0.3);
+  pointer-events: auto;
+}
+
+.stepCount {
+  font-size: 11px;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  margin-bottom: var(--space-2);
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.skip {
+  border: none;
+  background: none;
+  color: var(--ink-2);
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 24px;
+  padding: 0;
+}
+
+.skip:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.next {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 24px;
+}
+
+.next:hover {
+  opacity: 0.92;
+}
+
+.next:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

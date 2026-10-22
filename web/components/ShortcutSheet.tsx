@@ -1,5 +1,7 @@
 "use client";
 
+import { useCurrentActor } from "@/lib/session";
+import { requestTourStart } from "@/lib/tour";
 import styles from "./ShortcutSheet.module.css";
 
 const SHORTCUTS: Array<[string, string]> = [
@@ -19,6 +21,7 @@ const SHORTCUTS: Array<[string, string]> = [
 ];
 
 export function ShortcutSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { actor } = useCurrentActor();
   if (!open) return null;
   return (
     <div className={styles.overlay} role="presentation" onClick={onClose}>
@@ -38,6 +41,18 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose: () =>
             </div>
           ))}
         </dl>
+        {actor?.role !== "client" && (
+          <button
+            type="button"
+            className={styles.replayTour}
+            onClick={() => {
+              requestTourStart();
+              onClose();
+            }}
+          >
+            Replay tour
+          </button>
+        )}
         <button type="button" className={styles.close} onClick={onClose} autoFocus>
           Close
         </button>
